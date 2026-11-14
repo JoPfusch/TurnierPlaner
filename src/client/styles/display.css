@@ -1,0 +1,364 @@
+/* Projector view: one fixed screen, everything sized relative to the viewport. */
+
+.display {
+  height: 100vh;
+  width: 100vw;
+  overflow: hidden;
+  display: grid;
+  grid-template-rows: auto minmax(0, 1fr) auto;
+  grid-template-columns: minmax(0, 1fr);
+  background:
+    radial-gradient(ellipse at 15% 0%, #1c2750 0%, transparent 55%),
+    radial-gradient(ellipse at 100% 100%, #3a1220 0%, transparent 50%), var(--bg);
+  font-size: 2vh;
+}
+
+.display-loading {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 4vh;
+  color: var(--muted);
+}
+
+.d-header {
+  display: grid;
+  grid-template-columns: 1fr auto 1fr;
+  align-items: center;
+  padding: 1.6vh 2.5vw 1.2vh;
+  border-bottom: 2px solid var(--accent);
+}
+
+.d-header h1 {
+  margin: 0;
+  font-size: 4.4vh;
+  font-weight: 900;
+  letter-spacing: 0.01em;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.d-phase {
+  display: flex;
+  align-items: center;
+  gap: 1.2vw;
+}
+
+.d-badge {
+  background: var(--accent);
+  color: #fff;
+  font-weight: 800;
+  font-size: 2.2vh;
+  padding: 0.5vh 1.4vw;
+  border-radius: 10vh;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+}
+
+.d-progress {
+  color: var(--muted);
+  font-size: 2.2vh;
+}
+
+.d-clock {
+  justify-self: end;
+  font-size: 4.4vh;
+  font-weight: 800;
+  font-variant-numeric: tabular-nums;
+  display: flex;
+  align-items: center;
+  gap: 1.5vw;
+}
+
+.d-offline {
+  font-size: 1.8vh;
+  font-weight: 600;
+  color: var(--bubble);
+}
+
+.d-main {
+  min-height: 0;
+  padding: 1.6vh 2.5vw 1vh;
+  animation: d-fade 0.6s ease;
+}
+
+@keyframes d-fade {
+  from {
+    opacity: 0;
+    transform: translateY(1vh);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+
+.d-hint {
+  margin: 1vh 0 0;
+  text-align: center;
+  color: var(--muted);
+  font-size: 1.7vh;
+}
+
+.legend {
+  display: inline-block;
+  width: 1.4vh;
+  height: 1.4vh;
+  border-radius: 0.3vh;
+  margin: 0 0.5vw 0 1.5vw;
+  vertical-align: baseline;
+}
+
+.legend.in {
+  background: var(--in);
+}
+
+.legend.bubble {
+  background: var(--bubble);
+}
+
+/* ---------- groups ---------- */
+
+.d-groups-page {
+  height: 100%;
+  display: flex;
+  flex-direction: column;
+}
+
+.d-groups {
+  flex: 1;
+  min-height: 0;
+  display: grid;
+  gap: 1.6vh 1.4vw;
+  align-content: center;
+}
+
+/* ---------- bracket ---------- */
+
+.d-bracket {
+  height: 100%;
+  display: flex;
+  flex-direction: column;
+}
+
+.d-bracket .bracket {
+  flex: 1;
+}
+
+/* ---------- welcome / podium ---------- */
+
+.d-welcome,
+.d-podium {
+  height: 100%;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  text-align: center;
+}
+
+.d-welcome h2 {
+  font-size: 6vh;
+  margin: 0 0 3vh;
+}
+
+.d-welcome p {
+  color: var(--muted);
+  font-size: 2.6vh;
+}
+
+.d-chips {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  gap: 1.2vh 0.8vw;
+  max-width: 88vw;
+  max-height: 55vh;
+  overflow: hidden;
+}
+
+.d-chips span {
+  background: var(--bg-raised);
+  border: 1px solid var(--line);
+  border-radius: 10vh;
+  padding: 0.8vh 1.4vw;
+  font-size: 2.6vh;
+  font-weight: 600;
+}
+
+.d-trophy {
+  font-size: 16vh;
+  line-height: 1.15;
+  margin-bottom: 1vh;
+  animation: d-pop 1.2s ease;
+}
+
+@keyframes d-pop {
+  0% {
+    transform: scale(0.2) rotate(-20deg);
+    opacity: 0;
+  }
+  70% {
+    transform: scale(1.15) rotate(5deg);
+    opacity: 1;
+  }
+  100% {
+    transform: none;
+  }
+}
+
+.d-podium-label {
+  margin: 2vh 0 0;
+  color: var(--gold);
+  font-size: 3vh;
+  text-transform: uppercase;
+  letter-spacing: 0.3em;
+}
+
+.d-podium h2 {
+  margin: 1vh 0 5vh;
+  font-size: 12vh;
+  font-weight: 900;
+  line-height: 1.05;
+}
+
+.d-podium-rest {
+  display: flex;
+  gap: 6vw;
+  font-size: 4vh;
+  font-weight: 700;
+}
+
+.d-podium-rest span {
+  display: block;
+  font-size: 2vh;
+  font-weight: 600;
+  color: var(--muted);
+  text-transform: uppercase;
+  letter-spacing: 0.15em;
+}
+
+/* ---------- tables strip ---------- */
+
+.d-tables {
+  display: flex;
+  gap: 1vw;
+  padding: 1.2vh 2.5vw 1.8vh;
+  background: #060a16cc;
+  border-top: 1px solid var(--line);
+}
+
+.d-table {
+  flex: 1;
+  min-width: 0;
+  background: var(--bg-raised);
+  border: 1px solid var(--line);
+  border-radius: 1.2vh;
+  padding: 1vh 1vw;
+}
+
+.d-table.live {
+  border-color: var(--accent);
+  box-shadow: 0 0 2.5vh #e6394640;
+}
+
+.d-table-name {
+  font-size: 1.6vh;
+  font-weight: 800;
+  text-transform: uppercase;
+  letter-spacing: 0.12em;
+  color: var(--accent);
+}
+
+.d-table-idle {
+  font-size: 2.4vh;
+  color: var(--muted);
+  padding: 0.6vh 0;
+}
+
+.d-match {
+  display: flex;
+  align-items: baseline;
+  gap: 0.8vw;
+  min-width: 0;
+  flex: 1;
+}
+
+.d-match-teams {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  min-width: 0;
+}
+
+.d-match-teams i {
+  color: var(--muted);
+  font-style: normal;
+  font-size: 0.7em;
+  margin: 0 0.2em;
+}
+
+.d-match-meta {
+  flex: none;
+  margin-left: auto;
+  color: var(--muted);
+  font-size: 1.5vh;
+}
+
+.d-match.big .d-match-teams {
+  font-size: 2.9vh;
+  font-weight: 800;
+}
+
+.d-table-next {
+  display: flex;
+  align-items: baseline;
+  gap: 0.6vw;
+  margin-top: 0.4vh;
+  padding-top: 0.5vh;
+  border-top: 1px solid var(--line);
+  font-size: 1.8vh;
+  color: var(--muted);
+}
+
+.d-table-next > span {
+  flex: none;
+  font-size: 1.3vh;
+  text-transform: uppercase;
+  letter-spacing: 0.1em;
+}
+
+/* ---------- unobtrusive controls ---------- */
+
+.d-controls {
+  position: fixed;
+  right: 0.6vw;
+  top: 50%;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 0.5vh;
+  font-size: 1.3vh;
+  color: var(--muted);
+  opacity: 0.25;
+  transition: opacity 0.2s;
+}
+
+.d-controls:hover {
+  opacity: 1;
+}
+
+.d-controls button {
+  background: var(--bg-raised);
+  color: var(--text);
+  border: 1px solid var(--line);
+  border-radius: 0.8vh;
+  font-size: 2.4vh;
+  cursor: pointer;
+  padding: 0.2vh 0.5vw;
+}
+
+:fullscreen .d-controls button {
+  display: none;
+}
