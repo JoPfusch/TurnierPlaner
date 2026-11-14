@@ -2,8 +2,9 @@ import { mkdir, readFile, rename, writeFile } from 'node:fs/promises';
 import path from 'node:path';
 import {
   applyCommand,
+  hasDueProposals,
   initialState,
-  stateSchema,
+  parseState,
   type Command,
   type TournamentState,
 } from '../shared';
@@ -38,7 +39,7 @@ export class TournamentStore {
       return; // first start
     }
     try {
-      this.state = stateSchema.parse(JSON.parse(raw));
+      this.state = parseState(JSON.parse(raw));
     } catch (error) {
       const backup = `${this.file}.invalid-${Date.now()}`;
       await rename(this.file, backup);
@@ -57,6 +58,14 @@ export class TournamentStore {
         ? { ...command, seed: Math.floor(Math.random() * 2 ** 31) }
         : command;
     return this.commit(applyCommand(this.state, prepared));
+  }
+
+  /**
+   * Accepts reported results whose confirmation period is over. Called by a
+   * timer; only creates a new revision if something is actually due.
+   */
+  expireProposals(now: number): void {
+    if (hasDueProposals(this.state, now)) this.dispatch({ type: 'expireProposals', now });
   }
 
   /** Replaces the whole state (import of a backup). */

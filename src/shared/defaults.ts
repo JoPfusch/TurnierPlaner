@@ -36,6 +36,9 @@ export function defaultSettings(): Settings {
     startTime: null,
     matchMinutes: 15,
     koBreakMinutes: 0,
+    teamReporting: true,
+    confirmation: 'opponent',
+    autoConfirmMinutes: 5,
   };
 }
 
@@ -48,5 +51,6 @@ export function initialState(): TournamentState {
     nextTeamNumber: 1,
     draw: null,
     results: {},
+    proposals: {},
   };
 }

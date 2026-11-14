@@ -80,6 +80,11 @@ export function AdminApp() {
           {TABS.map((entry) => (
             <a key={entry.id} href={`#${entry.id}`} className={entry.id === tab ? 'active' : ''}>
               {entry.label}
+              {entry.id === 'matches' && view.pendingProposals > 0 && (
+                <span className="badge" title="Meldungen warten auf Bestätigung">
+                  {view.pendingProposals}
+                </span>
+              )}
             </a>
           ))}
         </nav>

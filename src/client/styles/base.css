@@ -325,3 +325,20 @@ body {
   right: 1.1em;
   bottom: 0;
 }
+
+/* ---------- reported, not yet confirmed ---------- */
+
+.group-table .pending {
+  color: var(--bubble);
+  font-style: normal;
+}
+
+.group-table tr.own td {
+  background: var(--accent-soft);
+}
+
+.bk-match.pending .bk-score {
+  color: var(--bubble);
+  font-style: italic;
+  font-weight: 600;
+}

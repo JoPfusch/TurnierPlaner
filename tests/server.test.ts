@@ -5,11 +5,13 @@ import path from 'node:path';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 import { createApp } from '../src/server/app';
 import { TournamentStore } from '../src/server/store';
+import { TeamTokens } from '../src/server/tokens';
 
 let dir: string;
 let base: string;
 let close: () => void;
 let store: TournamentStore;
+let tokens: TeamTokens;
 
 const post = (url: string, body: unknown, pin?: string) =>
   fetch(base + url, {
@@ -21,7 +23,8 @@ const post = (url: string, body: unknown, pin?: string) =>
 async function start(adminPin = ''): Promise<void> {
   store = new TournamentStore(dir);
   await store.load();
-  const app = createApp(store, { port: 0, host: '127.0.0.1', dataDir: dir, adminPin, clientDir: '/nonexistent' });
+  tokens = new TeamTokens(dir);
+  const app = createApp(store, { port: 0, host: '127.0.0.1', dataDir: dir, adminPin, clientDir: '/nonexistent', publicUrl: '' }, tokens);
   const server = app.listen(0, '127.0.0.1');
   await new Promise((resolve) => server.once('listening', resolve));
   base = `http://127.0.0.1:${(server.address() as AddressInfo).port}`;
@@ -83,5 +86,48 @@ describe('api', () => {
     await post('/api/commands', { type: 'addTeams', names: ['A'] });
     expect((await next()).teams).toHaveLength(1);
     await reader.cancel();
+  });
+
+  it('binds phones to teams via secret links and lets them report results', async () => {
+    await start('1234');
+    const names = ['A', 'B', 'C', 'D'];
+    await post('/api/commands', { type: 'addTeams', names }, '1234');
+    await post('/api/commands', { type: 'updateSettings', patch: { groupCount: 1, koSize: 2 } }, '1234');
+    await post('/api/commands', { type: 'draw', seed: 3 }, '1234');
+
+    expect((await fetch(`${base}/api/team-links`)).status).toBe(401);
+    const links = (await (await fetch(`${base}/api/team-links`, { headers: { 'x-admin-pin': '1234' } })).json()) as Record<string, string>;
+    expect(Object.keys(links)).toHaveLength(4);
+    expect(JSON.stringify(store.current)).not.toContain(Object.values(links)[0]);
+
+    const match = store.current.draw!.matches[0]!;
+    const tokenA = links[match.teamA]!;
+    const tokenB = links[match.teamB]!;
+    const outsider = Object.entries(links).find(([id]) => id !== match.teamA && id !== match.teamB)![1];
+    expect(await (await fetch(`${base}/api/team/${tokenA}`)).json()).toEqual({ teamId: match.teamA });
+    expect((await fetch(`${base}/api/team/wrong`)).status).toBe(404);
+
+    const report = { action: 'propose', matchId: match.id, scoreA: 2, scoreB: 0 };
+    expect((await post(`/api/team/${outsider}/actions`, report)).status).toBe(400);
+    expect((await post(`/api/team/${tokenA}/actions`, report)).status).toBe(200);
+    expect(store.current.proposals[match.id]).toMatchObject({ byTeamId: match.teamA });
+    expect((await post(`/api/team/${tokenA}/actions`, { action: 'confirm', matchId: match.id })).status).toBe(400);
+    expect((await post(`/api/team/${tokenB}/actions`, { action: 'confirm', matchId: match.id })).status).toBe(200);
+    expect(store.current.results[match.id]).toEqual({ scoreA: 2, scoreB: 0 });
+
+    // links survive a restart, but not a new tournament
+    const again = new TeamTokens(dir);
+    await again.load();
+    expect(again.teamIdFor(tokenA)).toBe(match.teamA);
+    await post('/api/commands', { type: 'resetTournament' }, '1234');
+    expect((await fetch(`${base}/api/team/${tokenA}`)).status).toBe(404);
+  });
+
+  it('serves a manifest whose start url keeps the team link', async () => {
+    await start();
+    const manifest = (await (await fetch(`${base}/api/manifest?start=/team/abc-123`)).json()) as { start_url: string };
+    expect(manifest.start_url).toBe('/team/abc-123');
+    const evil = (await (await fetch(`${base}/api/manifest?start=https://evil.example`)).json()) as { start_url: string };
+    expect(evil.start_url).toBe('/team');
   });
 });

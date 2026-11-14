@@ -5,7 +5,8 @@
 ```
 Browser (Beamer)  ─┐                         ┌─ data/tournament.json
 Browser (Laptop)  ─┼─ HTTP + SSE ─ Node.js ──┤
-Browser (Handy)   ─┘               (Express) └─ dist/client (statische Dateien)
+Browser (Handy)   ─┤               (Express) ├─ data/team-tokens.json
+Browser (Teams)   ─┘                         └─ dist/client (statische Dateien)
 ```
 
 Ein Node-Prozess hält genau ein Turnier. Clients ändern es über Befehle
@@ -48,12 +49,14 @@ docs/        diese Datei
 | `app.ts`     | Routen, PIN-Prüfung, Fehlerabbildung, Auslieferung des Clients |
 | `store.ts`   | Zustand im Speicher, atomares Schreiben, Benachrichtigung      |
 | `network.ts` | LAN-Adressen für Links und QR-Codes                            |
+| `tokens.ts`  | geheime Team-Links (Handy ↔ Team), getrennt vom Turnierzustand |
 
 ### `src/client`
 
 | Pfad                     | Aufgabe                                               |
 | ------------------------ | ----------------------------------------------------- |
-| `App.tsx`                | Weiche: `/` Beamer, `/admin` Verwaltung               |
+| `App.tsx`                | Weiche: `/` Beamer, `/admin` Verwaltung, `/team` Teams |
+| `team/TeamApp.tsx`       | Handy-Ansicht: Übersicht, melden, bestätigen          |
 | `useTournament.ts`       | SSE-Anbindung, leitet das Lesemodell ab               |
 | `api.ts`                 | Befehle senden, PIN-Abfrage, Import                   |
 | `display/DisplayApp.tsx` | Vollbild: Seitenwechsel, Skalierung, Tisch-Leiste     |
@@ -87,6 +90,34 @@ Jede Änderung ist ein validierter Befehl, den der reine Reducer anwendet.
 Regelverstöße werfen einen `DomainError` mit deutscher Meldung, die API
 antwortet mit 400 und die Verwaltung zeigt den Text an. Der Reducer ist ohne
 Server testbar; der Zufall kommt als Startwert im Befehl.
+
+### Meldungen der Teams
+
+Eine Meldung ist ein **Vorschlag** (`state.proposals[matchId]`), kein Ergebnis:
+Tabellen und KO-Baum rechnen ausschließlich mit `state.results`. Erst
+Bestätigung (Gegner, Zeitablauf oder Turnierleitung – je nach
+`settings.confirmation`) macht aus dem Vorschlag über denselben Codepfad wie
+die Admin-Eingabe ein Ergebnis. Damit gelten alle Schutzregeln der KO-Phase
+unverändert.
+
+- Nach jedem Befehl räumt der Reducer Vorschläge ab, die nicht mehr passen
+  (Spiel hat ein Ergebnis, Paarung hat sich geändert).
+- Der Zeitablauf ist ebenfalls ein Befehl (`expireProposals` mit Zeitstempel),
+  den ein Timer im Server sendet – der Reducer bleibt frei von Uhr und Zufall.
+- Strittige Vorschläge laufen nie automatisch ab.
+
+**Zuordnung Handy ↔ Team:** Jedes Team hat ein zufälliges Token; der QR-Code
+enthält `/team/<token>`. Die Tokens liegen bewusst *nicht* im Turnierzustand,
+denn der geht per SSE an alle Geräte. Sie stehen in `team-tokens.json`, die
+Verwaltung holt sie PIN-geschützt für die QR-Codes. Team-Aktionen laufen über
+`/api/team/:token/actions`; der Server setzt `teamId` und Zeitstempel selbst,
+ein Handy kann also nur für das eigene Team handeln.
+
+**Startbildschirm:** `/api/manifest?start=/team/<token>` liefert ein Manifest
+mit dem Team-Link als Start-URL. Das ist nötig, weil abgelegte Web-Apps auf
+iOS einen eigenen Speicher haben und das im Browser gemerkte Token nicht
+sehen. Auf einen Service Worker wurde verzichtet: Er setzt HTTPS voraus und
+die App ist ohne Server ohnehin nutzlos.
 
 ### Server-Sent Events statt WebSocket
 
@@ -139,14 +170,21 @@ werden auf mehrere Seiten verteilt.
 | GET     | `/api/info`     | LAN-Adressen, PIN nötig?                          |
 | POST    | `/api/commands` | Befehl anwenden (PIN)                             |
 | POST    | `/api/import`   | Zustand ersetzen (PIN)                            |
+| GET     | `/api/team-links` | Token je Team für die QR-Codes (PIN)            |
+| GET     | `/api/team/:token` | Team zu einem Token                            |
+| POST    | `/api/team/:token/actions` | `propose`, `confirm`, `dispute`, `withdraw` |
+| GET     | `/api/manifest` | Web-App-Manifest                                  |
 
 Befehle (`type`): `addTeams`, `renameTeam`, `removeTeam`, `updateSettings`,
 `draw`, `discardDraw`, `setResult`, `clearResult`, `resetKnockout`,
-`resetTournament`. Die genauen Felder stehen in `src/shared/commands.ts`.
+`resetTournament`, dazu für Meldungen `proposeResult`, `confirmProposal`,
+`disputeProposal`, `withdrawProposal`, `acceptProposal`, `rejectProposal`,
+`expireProposals`. Die genauen Felder stehen in `src/shared/commands.ts`.
 
 ## Grenzen und mögliche Erweiterungen
 
 - Ein Turnier je Serverinstanz.
+- Kein HTTPS: PIN und Team-Links gehen unverschlüsselt durchs WLAN.
 - Keine Unentschieden.
 - Ergebnis-Eingabe erfasst Sieger + Restbecher; das Datenmodell
   (`scoreA`/`scoreB`) erlaubt bereits beliebige Spielstände.

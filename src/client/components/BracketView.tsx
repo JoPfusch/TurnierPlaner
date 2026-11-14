@@ -1,5 +1,5 @@
 import type { Bracket, BracketMatch, BracketSlot } from '../../shared/knockout';
-import type { Settings } from '../../shared/types';
+import type { Proposal, Settings } from '../../shared/types';
 import { clockTime } from '../time';
 
 interface Props {
@@ -8,6 +8,8 @@ interface Props {
   settings: Settings;
   /** Group stage still running: participants are a projection. */
   provisional: boolean;
+  /** Reported but unconfirmed results; shown as pending scores. */
+  proposals?: Readonly<Record<string, Proposal>>;
 }
 
 /**
@@ -15,7 +17,7 @@ interface Props {
  * share the height equally, so a match is always centred between its two
  * feeder matches. Sizes are in `em`; the parent sets the font size.
  */
-export function BracketView({ bracket, teamNames, settings, provisional }: Props) {
+export function BracketView({ bracket, teamNames, settings, provisional, proposals = {} }: Props) {
   const meta = (match: BracketMatch): string => {
     const parts = [match.label];
     if (match.table !== null) parts.push(settings.tableNames[match.table] ?? '');
@@ -24,6 +26,7 @@ export function BracketView({ bracket, teamNames, settings, provisional }: Props
       (match.slot ?? 0) * settings.matchMinutes + settings.koBreakMinutes,
     );
     if (time) parts.push(time);
+    if (!match.result && proposals[match.id]) parts.push('unbestätigt');
     return parts.filter(Boolean).join(' · ');
   };
 
@@ -39,13 +42,17 @@ export function BracketView({ bracket, teamNames, settings, provisional }: Props
     );
   };
 
-  const box = (match: BracketMatch) => (
-    <div className={`bk-match${provisional ? ' provisional' : ''}`}>
-      <div className="bk-meta">{meta(match)}</div>
-      {side(match, match.a, match.result?.scoreA)}
-      {side(match, match.b, match.result?.scoreB)}
-    </div>
-  );
+  const box = (match: BracketMatch) => {
+    const shown = match.result ?? proposals[match.id];
+    const pending = !match.result && shown !== undefined;
+    return (
+      <div className={`bk-match${provisional ? ' provisional' : ''}${pending ? ' pending' : ''}`}>
+        <div className="bk-meta">{meta(match)}</div>
+        {side(match, match.a, shown?.scoreA)}
+        {side(match, match.b, shown?.scoreB)}
+      </div>
+    );
+  };
 
   return (
     <div className="bracket">

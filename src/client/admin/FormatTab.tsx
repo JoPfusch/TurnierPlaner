@@ -6,7 +6,12 @@ import {
   suggestedKoSizes,
   type FormatAnalysis,
 } from '../../shared/format';
-import { CRITERION_KEYS, type CriterionKey, type Settings } from '../../shared/types';
+import {
+  CRITERION_KEYS,
+  type ConfirmationMode,
+  type CriterionKey,
+  type Settings,
+} from '../../shared/types';
 import { formatDuration } from '../time';
 import { NumberField, TextField, type TabProps } from './common';
 
@@ -211,6 +216,58 @@ export function FormatTab({ state, view, run }: TabProps) {
       </section>
 
       <section className="card">
+        <h2>Ergebnismeldung durch die Teams</h2>
+        <label className="check-line">
+          <input
+            type="checkbox"
+            checked={settings.teamReporting}
+            onChange={(event) => update({ teamReporting: event.target.checked })}
+          />
+          Teams dürfen ihre Ergebnisse am eigenen Handy melden
+        </label>
+        {settings.teamReporting && (
+          <>
+            <h3>Wann gilt ein gemeldetes Ergebnis?</h3>
+            <div className="radio-list">
+              {CONFIRMATION_OPTIONS.map((option) => (
+                <label key={option.mode}>
+                  <input
+                    type="radio"
+                    name="confirmation"
+                    checked={settings.confirmation === option.mode}
+                    onChange={() => update({ confirmation: option.mode })}
+                  />
+                  <span>
+                    <strong>{option.title}</strong>
+                    <small>{option.text}</small>
+                  </span>
+                </label>
+              ))}
+            </div>
+            {settings.confirmation === 'timeout' && (
+              <div className="form-grid">
+                <label>
+                  Automatisch übernehmen nach (Minuten)
+                  <NumberField
+                    value={settings.autoConfirmMinutes}
+                    min={1}
+                    max={240}
+                    onCommit={(autoConfirmMinutes) => update({ autoConfirmMinutes })}
+                  />
+                </label>
+              </div>
+            )}
+            <p className="muted small">
+              Gemeldete Ergebnisse erscheinen sofort als „unbestätigt“ in der Übersicht, zählen aber erst
+              nach der Bestätigung für Tabelle und KO-Runde. Die Turnierleitung kann jede Meldung im Reiter
+              „Spiele“ übernehmen oder verwerfen; strittige Meldungen entscheidet immer sie. Die QR-Codes
+              für die Teams stehen im Reiter „Teams“.
+            </p>
+          </>
+        )}
+      </section>
+
+      <section className="card">
         <h2>Auslosung</h2>
         {drawn ? (
           <>
@@ -251,6 +308,24 @@ export function FormatTab({ state, view, run }: TabProps) {
     </div>
   );
 }
+
+const CONFIRMATION_OPTIONS: Array<{ mode: ConfirmationMode; title: string; text: string }> = [
+  {
+    mode: 'opponent',
+    title: 'Gegner bestätigt',
+    text: 'Reagiert der Gegner nicht, bleibt die Meldung offen, bis die Turnierleitung sie übernimmt.',
+  },
+  {
+    mode: 'timeout',
+    title: 'Gegner bestätigt, sonst automatisch',
+    text: 'Reagiert der Gegner nicht innerhalb der eingestellten Zeit, gilt die Meldung von selbst.',
+  },
+  {
+    mode: 'admin',
+    title: 'Turnierleitung bestätigt immer',
+    text: 'Teams melden nur; jedes Ergebnis muss von der Turnierleitung übernommen werden.',
+  },
+];
 
 function koLabel(size: number): string {
   switch (size) {

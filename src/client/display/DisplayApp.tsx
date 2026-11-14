@@ -110,6 +110,7 @@ export function DisplayApp() {
               teamNames={view.teamNames}
               settings={settings}
               provisional={view.seedsProvisional}
+              proposals={state.proposals}
             />
             {view.seedsProvisional && (
               <p className="d-hint">

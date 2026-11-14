@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { applyCommand, deriveView, DomainError, initialState } from '../src/shared';
+import { applyCommand, deriveView, DomainError, hasDueProposals, initialState, parseState } from '../src/shared';
 import { drawnTournament, playGroupStage, run } from './helpers';
 
 describe('tournament flow', () => {
@@ -105,5 +105,97 @@ describe('tournament flow', () => {
     const id = state.draw!.matches[0]!.id;
     expect(() => applyCommand(state, { type: 'setResult', matchId: id, scoreA: 1, scoreB: 1 })).toThrow(DomainError);
     expect(() => applyCommand(state, { type: 'setResult', matchId: id, scoreA: 11, scoreB: 0 })).toThrow(DomainError);
+  });
+});
+
+describe('results reported by teams', () => {
+  const setup = (patch = {}) => {
+    const state = run(drawnTournament(8, 2, 4), { type: 'updateSettings', patch });
+    const match = state.draw!.matches[0]!;
+    const report = { type: 'proposeResult', matchId: match.id, teamId: match.teamA, scoreA: 3, scoreB: 0, at: 1000 } as const;
+    return { state, match, report };
+  };
+
+  it('counts only after the opponent confirmed', () => {
+    const { state, match, report } = setup();
+    let next = applyCommand(state, report);
+    let view = deriveView(next);
+    expect(next.results[match.id]).toBeUndefined();
+    expect(view.pendingProposals).toBe(1);
+    expect(view.groups.flatMap((g) => g.rows).every((r) => r.played === 0)).toBe(true);
+    // the table moves on to its next match while the confirmation is pending
+    expect(view.tables[match.table]!.current!.id).not.toBe(match.id);
+
+    expect(() => applyCommand(next, { type: 'confirmProposal', matchId: match.id, teamId: match.teamA })).toThrow(DomainError);
+    expect(() => applyCommand(next, { type: 'confirmProposal', matchId: match.id, teamId: 'nobody' })).toThrow(DomainError);
+    next = applyCommand(next, { type: 'confirmProposal', matchId: match.id, teamId: match.teamB });
+    expect(next.results[match.id]).toEqual({ scoreA: 3, scoreB: 0 });
+    expect(next.proposals).toEqual({});
+  });
+
+  it('treats an identical report of the opponent as confirmation and a different one as dispute', () => {
+    const { state, match, report } = setup();
+    const agreed = run(state, report, { ...report, teamId: match.teamB });
+    expect(agreed.results[match.id]).toEqual({ scoreA: 3, scoreB: 0 });
+
+    const disputed = run(state, report, { ...report, teamId: match.teamB, scoreA: 0, scoreB: 2 });
+    expect(disputed.results[match.id]).toBeUndefined();
+    expect(disputed.proposals[match.id]).toMatchObject({ byTeamId: match.teamA, disputed: true });
+    expect(run(disputed, { type: 'acceptProposal', matchId: match.id }).results[match.id]).toEqual({ scoreA: 3, scoreB: 0 });
+    expect(run(disputed, { type: 'rejectProposal', matchId: match.id }).proposals).toEqual({});
+  });
+
+  it('lets the reporting team correct or withdraw and only participants report', () => {
+    const { state, match, report } = setup();
+    const corrected = run(state, report, { ...report, scoreA: 5 });
+    expect(corrected.proposals[match.id]!.scoreA).toBe(5);
+    expect(run(corrected, { type: 'withdrawProposal', matchId: match.id, teamId: match.teamA }).proposals).toEqual({});
+    expect(() => applyCommand(state, { ...report, teamId: 'other' })).toThrow(/spielt in diesem Spiel nicht/);
+    expect(() => applyCommand(state, { ...report, matchId: 'ko-0-0' })).toThrow(DomainError);
+    const off = run(state, { type: 'updateSettings', patch: { teamReporting: false } });
+    expect(() => applyCommand(off, report)).toThrow(/ausgeschaltet/);
+  });
+
+  it('accepts unanswered reports after the configured time, but not disputed ones', () => {
+    const { state, match, report } = setup({ confirmation: 'timeout', autoConfirmMinutes: 5 });
+    const reported = applyCommand(state, report);
+    expect(hasDueProposals(reported, 1000 + 4 * 60_000)).toBe(false);
+    expect(hasDueProposals(reported, 1000 + 5 * 60_000)).toBe(true);
+    const expired = applyCommand(reported, { type: 'expireProposals', now: 1000 + 5 * 60_000 });
+    expect(expired.results[match.id]).toEqual({ scoreA: 3, scoreB: 0 });
+
+    const disputed = applyCommand(reported, { type: 'disputeProposal', matchId: match.id, teamId: match.teamB });
+    expect(hasDueProposals(disputed, 1e12)).toBe(false);
+    expect(hasDueProposals(applyCommand(setup().state, report), 1e12)).toBe(false); // mode "opponent"
+  });
+
+  it('requires the organiser in admin mode', () => {
+    const { state, match, report } = setup({ confirmation: 'admin' });
+    const reported = run(state, report, { ...report, teamId: match.teamB });
+    expect(reported.results[match.id]).toBeUndefined();
+    expect(() => applyCommand(reported, { type: 'confirmProposal', matchId: match.id, teamId: match.teamB })).toThrow(/Turnierleitung/);
+    expect(run(reported, { type: 'acceptProposal', matchId: match.id }).results[match.id]).toBeDefined();
+  });
+
+  it('drops a report when the organiser enters the result or the pairing changes', () => {
+    const { state, match, report } = setup();
+    const entered = run(state, report, { type: 'setResult', matchId: match.id, scoreA: 0, scoreB: 1 });
+    expect(entered.proposals).toEqual({});
+
+    let ko = playGroupStage(drawnTournament(8, 2, 4));
+    ko = run(ko, { type: 'setResult', matchId: 'ko-0-0', scoreA: 2, scoreB: 0 }, { type: 'setResult', matchId: 'ko-0-1', scoreA: 2, scoreB: 0 });
+    const finalist = deriveView(ko).bracket!.rounds[1]!.matches[0]!.a.teamId!;
+    ko = applyCommand(ko, { type: 'proposeResult', matchId: 'ko-1-0', teamId: finalist, scoreA: 1, scoreB: 0, at: 1 });
+    expect(ko.proposals['ko-1-0']).toBeDefined();
+    ko = applyCommand(ko, { type: 'setResult', matchId: 'ko-0-0', scoreA: 0, scoreB: 2 }); // other finalist
+    expect(ko.proposals).toEqual({});
+  });
+
+  it('loads data files written before team reporting existed', () => {
+    const { proposals: _p, settings, ...rest } = drawnTournament(8, 2, 4);
+    const { teamReporting: _t, confirmation: _c, autoConfirmMinutes: _a, ...oldSettings } = settings;
+    const loaded = parseState({ ...rest, settings: oldSettings });
+    expect(loaded.proposals).toEqual({});
+    expect(loaded.settings).toMatchObject({ teamReporting: true, confirmation: 'opponent', groupCount: 2 });
   });
 });

@@ -7,7 +7,7 @@ import {
 import { computeSeeds, qualificationRule, type Seed } from './qualification';
 import { groupSlotCount } from './schedule';
 import { computeStats, rankTeams, type PlayedMatch, type TeamStats } from './standings';
-import type { GroupMatch, MatchId, Phase, Result, TeamId, TournamentState } from './types';
+import type { GroupMatch, MatchId, Phase, Proposal, Result, TeamId, TournamentState } from './types';
 
 /**
  * Read model: everything the UI shows, derived from the persisted state.
@@ -35,6 +35,8 @@ export interface GroupView {
   played: number;
   total: number;
   complete: boolean;
+  /** Reported results of this group that still wait for confirmation. */
+  pending: number;
 }
 
 /** A match of either stage in a uniform shape for schedule lists. */
@@ -50,6 +52,8 @@ export interface MatchView {
   placeholderA: string;
   placeholderB: string;
   result: Result | null;
+  /** Result reported by a team that is not confirmed yet. */
+  proposal: Proposal | null;
   winnerId: TeamId | null;
   /** Both participants are known and a result may be entered. */
   playable: boolean;
@@ -77,6 +81,8 @@ export interface TournamentView {
   schedule: MatchView[];
   tables: TableView[];
   progress: { played: number; total: number };
+  /** Number of reported results waiting for confirmation. */
+  pendingProposals: number;
   durationMinutes: number;
 }
 
@@ -111,6 +117,7 @@ export function deriveView(state: TournamentState): TournamentView {
       schedule: [],
       tables: settings.tableNames.map((name, index) => ({ index, name, current: null, next: null })),
       progress: { played: 0, total: 0 },
+      pendingProposals: 0,
       durationMinutes: 0,
     };
   }
@@ -162,6 +169,7 @@ export function deriveView(state: TournamentState): TournamentView {
       played: done,
       total: matches.length,
       complete: done === matches.length,
+      pending: matches.filter((match) => !results[match.id] && state.proposals[match.id]).length,
       rows: ranking.ranked.map((entry, index) => ({
         ...(ranking.stats.get(entry.teamId) as TeamStats),
         rank: index + 1,
@@ -192,6 +200,7 @@ export function deriveView(state: TournamentState): TournamentView {
       placeholderA: '',
       placeholderB: '',
       result,
+      proposal: result ? null : (state.proposals[match.id] ?? null),
       winnerId: result ? (result.scoreA > result.scoreB ? match.teamA : match.teamB) : null,
       playable: true,
       minutesFromStart: minutes(match.slot, false),
@@ -208,6 +217,7 @@ export function deriveView(state: TournamentState): TournamentView {
     placeholderA: match.a.placeholder,
     placeholderB: match.b.placeholder,
     result: match.result,
+    proposal: match.result ? null : (state.proposals[match.id] ?? null),
     winnerId: match.winnerId,
     playable: groupStageComplete && match.a.teamId !== null && match.b.teamId !== null,
     minutesFromStart: minutes(match.slot ?? 0, true),
@@ -220,7 +230,8 @@ export function deriveView(state: TournamentState): TournamentView {
   ];
 
   const tables: TableView[] = settings.tableNames.map((name, index) => {
-    const open = schedule.filter((match) => match.table === index && !match.result);
+    // A reported match is over for the table, even if the confirmation is still pending.
+    const open = schedule.filter((m) => m.table === index && !m.result && !m.proposal);
     const current = open[0]?.playable ? open[0] : null;
     return { index, name, current, next: (current ? open[1] : open[0]) ?? null };
   });
@@ -243,6 +254,7 @@ export function deriveView(state: TournamentState): TournamentView {
     schedule,
     tables,
     progress: { played: playedTotal, total: schedule.length },
+    pendingProposals: schedule.filter((match) => match.proposal).length,
     durationMinutes: bracket.endSlot * settings.matchMinutes + settings.koBreakMinutes,
   };
 }

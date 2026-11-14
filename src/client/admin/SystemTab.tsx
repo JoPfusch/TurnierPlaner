@@ -1,6 +1,6 @@
-import QRCode from 'qrcode';
 import { useEffect, useRef, useState } from 'react';
-import { fetchInfo, importState, type ServerInfo } from '../api';
+import { fetchInfo, importState, shareOrigins, type ServerInfo } from '../api';
+import { QrCode } from '../components/QrCode';
 import type { TabProps } from './common';
 
 /** Links for other devices, backup/restore and the destructive actions. */
@@ -15,11 +15,7 @@ export function SystemTab({ state, view, run }: TabProps) {
       .catch(() => setInfo(null));
   }, []);
 
-  // When opened via localhost, offer the LAN addresses instead – a phone cannot reach "localhost".
-  const { protocol, hostname, port } = window.location;
-  const local = hostname === 'localhost' || hostname === '127.0.0.1';
-  const hosts = local && info && info.addresses.length > 0 ? info.addresses : [hostname];
-  const origins = hosts.map((host) => `${protocol}//${host}${port ? `:${port}` : ''}`);
+  const origins = shareOrigins(info);
 
   const exportBackup = (): void => {
     const blob = new Blob([JSON.stringify(state, null, 2)], { type: 'application/json' });
@@ -58,6 +54,8 @@ export function SystemTab({ state, view, run }: TabProps) {
               <div>
                 <strong>Verwaltung (Handy)</strong>
                 <a href={`${origin}/admin`}>{origin}/admin</a>
+                <strong>Übersicht für alle (Handy)</strong>
+                <a href={`${origin}/team`}>{origin}/team</a>
                 <strong>Beamer</strong>
                 <a href={`${origin}/`} target="_blank" rel="noreferrer">
                   {origin}/
@@ -70,6 +68,9 @@ export function SystemTab({ state, view, run }: TabProps) {
           Beamer-Ansicht: Taste F für Vollbild, Pfeiltasten zum Blättern, Leertaste pausiert den
           Wechsel. Mit <code>?view=groups</code> oder <code>?view=bracket</code> bleibt eine Ansicht
           fest, <code>?rotate=20</code> stellt die Sekunden pro Seite ein.
+        </p>
+        <p className="muted small">
+          Die QR-Codes, mit denen sich die Teams ihrem Handy zuordnen, stehen im Reiter „Teams“.
         </p>
         <p className="small">
           Schreibschutz:{' '}
@@ -147,20 +148,4 @@ export function SystemTab({ state, view, run }: TabProps) {
       </section>
     </div>
   );
-}
-
-function QrCode({ text }: { text: string }) {
-  const [src, setSrc] = useState('');
-  useEffect(() => {
-    let active = true;
-    QRCode.toDataURL(text, { margin: 1, width: 180 })
-      .then((url) => {
-        if (active) setSrc(url);
-      })
-      .catch(() => undefined);
-    return () => {
-      active = false;
-    };
-  }, [text]);
-  return src ? <img className="qr" src={src} alt={`QR-Code für ${text}`} /> : <div className="qr" />;
 }

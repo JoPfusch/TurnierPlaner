@@ -10,6 +10,11 @@ export interface ServerConfig {
   adminPin: string;
   /** Directory of the built client (served in production). */
   clientDir: string;
+  /**
+   * Address used for links and QR codes instead of the IP, e.g. `http://turnier.fritz.box:3000`.
+   * Empty = use the network addresses of this machine.
+   */
+  publicUrl: string;
 }
 
 export function loadConfig(env: NodeJS.ProcessEnv = process.env): ServerConfig {
@@ -18,6 +23,7 @@ export function loadConfig(env: NodeJS.ProcessEnv = process.env): ServerConfig {
     host: env.HOST ?? '0.0.0.0',
     dataDir: path.resolve(env.DATA_DIR ?? 'data'),
     adminPin: (env.ADMIN_PIN ?? '').trim(),
+    publicUrl: (env.PUBLIC_URL ?? '').trim().replace(/\/+$/, ''),
     clientDir: path.resolve(env.CLIENT_DIR ?? path.join(import.meta.dirname, '..', 'client')),
   };
 }

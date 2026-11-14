@@ -55,6 +55,30 @@ export interface Settings {
   matchMinutes: number;
   /** Break between group stage and knockout stage in minutes. */
   koBreakMinutes: number;
+  /** Teams may report their own results from their phones. */
+  teamReporting: boolean;
+  /** Who turns a reported result into an official one. */
+  confirmation: ConfirmationMode;
+  /** Minutes after which an unanswered report is accepted (mode `timeout`). */
+  autoConfirmMinutes: number;
+}
+
+/**
+ * How a result reported by a team becomes official:
+ * - `opponent`: the other team confirms (the organiser always can, too)
+ * - `timeout`:  like `opponent`, but an unanswered report is accepted automatically
+ * - `admin`:    only the organiser confirms
+ */
+export const CONFIRMATION_MODES = ['opponent', 'timeout', 'admin'] as const;
+export type ConfirmationMode = (typeof CONFIRMATION_MODES)[number];
+
+/** A result reported by one of the two teams that is not official yet. */
+export interface Proposal extends Result {
+  byTeamId: TeamId;
+  /** Time of the report (ms since epoch). */
+  at: number;
+  /** The other team contradicted – the organiser has to decide. */
+  disputed: boolean;
 }
 
 export interface Group {
@@ -106,6 +130,8 @@ export interface TournamentState {
   draw: Draw | null;
   /** Results of group matches and knockout matches, keyed by match id. */
   results: Record<MatchId, Result>;
+  /** Reported but unconfirmed results, keyed by match id. They do not count for the standings. */
+  proposals: Record<MatchId, Proposal>;
 }
 
 export type Phase = 'setup' | 'group' | 'knockout' | 'finished';

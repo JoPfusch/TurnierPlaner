@@ -3,7 +3,7 @@ import type { MatchView } from '../../shared/view';
 import { clockTime } from '../time';
 import type { TabProps } from './common';
 
-type Filter = 'open' | 'all' | number;
+type Filter = 'open' | 'pending' | 'all' | number;
 
 /**
  * Result entry, optimised for a phone next to the table: tap the winner,
@@ -21,6 +21,7 @@ export function MatchesTab({ state, view, run }: TabProps) {
 
   const visible = view.schedule.filter((match) => {
     if (filter === 'open') return !match.result;
+    if (filter === 'pending') return match.proposal !== null;
     if (filter === 'all') return true;
     return match.table === filter;
   });
@@ -55,6 +56,7 @@ export function MatchesTab({ state, view, run }: TabProps) {
     <div className="a-stack">
       <div className="chips">
         {chip('open', `Offen (${view.progress.total - view.progress.played})`)}
+        {view.pendingProposals > 0 && chip('pending', `Zu bestätigen (${view.pendingProposals})`)}
         {chip('all', `Alle (${view.progress.total})`)}
         {settings.tableNames.map((table, index) => chip(index, table))}
       </div>
@@ -117,6 +119,31 @@ export function MatchesTab({ state, view, run }: TabProps) {
                         </div>
                       </div>
                     )}
+                    {match.proposal && (
+                      <div className={`proposal${match.proposal.disputed ? ' disputed' : ''}`}>
+                        <p>
+                          {match.proposal.disputed ? '⚠ Strittig – ' : 'Gemeldet von '}
+                          <strong>{name(match.proposal.byTeamId, '')}</strong>
+                          {match.proposal.disputed ? ' meldet' : ':'}{' '}
+                          <b>
+                            {match.proposal.scoreA} : {match.proposal.scoreB}
+                          </b>
+                          <span className="muted"> · {reportedAt(match.proposal.at)}</span>
+                        </p>
+                        <div className="row">
+                          <button
+                            type="button"
+                            className="primary"
+                            onClick={() => void run({ type: 'acceptProposal', matchId: match.id })}
+                          >
+                            Übernehmen
+                          </button>
+                          <button type="button" onClick={() => void run({ type: 'rejectProposal', matchId: match.id })}>
+                            Verwerfen
+                          </button>
+                        </div>
+                      </div>
+                    )}
                     {!match.playable && <p className="muted small">Teilnehmer stehen noch nicht fest.</p>}
                     {match.result && !open && (
                       <button
@@ -136,4 +163,8 @@ export function MatchesTab({ state, view, run }: TabProps) {
       })}
     </div>
   );
+}
+
+function reportedAt(at: number): string {
+  return `${new Date(at).toLocaleTimeString('de-DE', { hour: '2-digit', minute: '2-digit' })} Uhr`;
 }

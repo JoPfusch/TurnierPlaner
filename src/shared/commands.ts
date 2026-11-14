@@ -1,6 +1,6 @@
 import { z } from 'zod';
-import { LIMITS } from './defaults';
-import { CRITERION_KEYS } from './types';
+import { defaultSettings, LIMITS } from './defaults';
+import { CONFIRMATION_MODES, CRITERION_KEYS, type TournamentState } from './types';
 
 /**
  * Commands are the only way to change the tournament. They are validated
@@ -27,6 +27,9 @@ export const settingsSchema = z.object({
     .nullable(),
   matchMinutes: z.number().int().min(1).max(240),
   koBreakMinutes: z.number().int().min(0).max(240),
+  teamReporting: z.boolean(),
+  confirmation: z.enum(CONFIRMATION_MODES),
+  autoConfirmMinutes: z.number().int().min(1).max(240),
 });
 
 export const commandSchema = z.discriminatedUnion('type', [
@@ -44,7 +47,34 @@ export const commandSchema = z.discriminatedUnion('type', [
   z.object({ type: z.literal('resetKnockout') }),
   /** Deletes everything including teams and settings. */
   z.object({ type: z.literal('resetTournament') }),
+
+  // --- results reported by teams (the server fills in `teamId` and `at`) ---
+  z.object({
+    type: z.literal('proposeResult'),
+    matchId: z.string(),
+    teamId: z.string(),
+    scoreA: score,
+    scoreB: score,
+    at: z.number(),
+  }),
+  z.object({ type: z.literal('confirmProposal'), matchId: z.string(), teamId: z.string() }),
+  z.object({ type: z.literal('disputeProposal'), matchId: z.string(), teamId: z.string() }),
+  z.object({ type: z.literal('withdrawProposal'), matchId: z.string(), teamId: z.string() }),
+  /** Organiser accepts / discards a reported result. */
+  z.object({ type: z.literal('acceptProposal'), matchId: z.string() }),
+  z.object({ type: z.literal('rejectProposal'), matchId: z.string() }),
+  /** Accepts all reports whose confirmation period is over (sent by the server's timer). */
+  z.object({ type: z.literal('expireProposals'), now: z.number() }),
 ]);
+
+/** What a team's phone may send; the server turns it into one of the commands above. */
+export const teamActionSchema = z.discriminatedUnion('action', [
+  z.object({ action: z.literal('propose'), matchId: z.string(), scoreA: score, scoreB: score }),
+  z.object({ action: z.literal('confirm'), matchId: z.string() }),
+  z.object({ action: z.literal('dispute'), matchId: z.string() }),
+  z.object({ action: z.literal('withdraw'), matchId: z.string() }),
+]);
+export type TeamAction = z.infer<typeof teamActionSchema>;
 
 export type Command = z.infer<typeof commandSchema>;
 
@@ -76,4 +106,22 @@ export const stateSchema = z.object({
     })
     .nullable(),
   results: z.record(z.string(), resultSchema),
+  proposals: z.record(
+    z.string(),
+    resultSchema.extend({ byTeamId: z.string(), at: z.number(), disputed: z.boolean() }),
+  ),
 });
+
+/**
+ * Validates a stored or imported state. Fields added in later versions are
+ * filled with their defaults first, so older data files keep working.
+ */
+export function parseState(raw: unknown): TournamentState {
+  const input = (typeof raw === 'object' && raw !== null ? raw : {}) as Record<string, unknown>;
+  const settings = typeof input.settings === 'object' && input.settings !== null ? input.settings : {};
+  return stateSchema.parse({
+    ...input,
+    settings: { ...defaultSettings(), ...settings },
+    proposals: input.proposals ?? {},
+  });
+}

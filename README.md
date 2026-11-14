@@ -8,6 +8,9 @@ für Beerpong-Turniere, funktioniert aber für jedes Spiel nach dem Prinzip
   Spielen je Tisch. Aktualisiert sich von selbst.
 - **Verwaltung** (`/admin`): Teams, Format, Ergebnisse – am Laptop oder per
   QR-Code am Handy, parallel zur Beamer-Ansicht.
+- **Team-Ansicht** (`/team`): Übersicht für alle am Handy. Mit dem QR-Code des
+  eigenen Teams zusätzlich: nächstes Spiel, Ergebnis melden, Meldung des
+  Gegners bestätigen.
 
 ## Schnellstart
 
@@ -26,6 +29,7 @@ Danach:
 | Beamer     | `http://localhost:3000/`                  |
 | Verwaltung | `http://localhost:3000/admin`             |
 | Handy      | `http://<IP-des-Laptops>:3000/admin`      |
+| Teams      | `http://<IP-des-Laptops>:3000/team`       |
 
 Die Netzwerkadresse gibt der Server beim Start aus; im Reiter **System** steht
 sie zusätzlich als QR-Code. Alle Geräte müssen im selben WLAN sein.
@@ -64,6 +68,37 @@ sie zusätzlich als QR-Code. Alle Geräte müssen im selben WLAN sein.
 - **Prognose**: Während der Gruppenphase zeigt der KO-Baum gestrichelt, wer
   nach aktuellem Stand weiterkäme.
 
+### Ergebnisse von den Teams melden lassen
+
+1. Im Reiter **Teams** „QR-Codes anzeigen“ – einzeln groß zeigen oder alle
+   drucken. Eine Person pro Team scannt den Code ihres Teams; das Handy ist
+   damit dem Team zugeordnet (mehrere Handys pro Team sind möglich).
+2. Nach einem Spiel meldet ein Team: Sieger + Restbecher.
+3. Die Meldung erscheint sofort als **unbestätigt** (Beamer, Tabellen,
+   KO-Baum), zählt aber noch nicht. Der Tisch gilt als frei, das nächste Spiel
+   rückt nach.
+4. Gültig wird sie je nach Einstellung (Reiter **Format**):
+
+   | Einstellung                         | Meldung gilt, wenn …                                              |
+   | ----------------------------------- | ----------------------------------------------------------------- |
+   | Gegner bestätigt                    | der Gegner „Stimmt“ tippt (oder dasselbe Ergebnis meldet)          |
+   | Gegner bestätigt, sonst automatisch | wie oben, sonst von selbst nach der eingestellten Minutenzahl      |
+   | Turnierleitung bestätigt immer      | die Turnierleitung sie im Reiter **Spiele** übernimmt              |
+
+5. Tippt der Gegner „Stimmt nicht“ (oder meldet etwas anderes), ist die Meldung
+   **strittig** und wird nie automatisch übernommen – die Turnierleitung
+   entscheidet. Sie kann ohnehin jede Meldung übernehmen, verwerfen oder das
+   Ergebnis direkt eintragen.
+
+Der QR-Code ist der Schlüssel des Teams: Wer ihn hat, kann für das Team
+melden. „Neues Turnier“ macht alle alten Codes ungültig.
+
+**Als App ablegen:** In der Team-Ansicht über das Browser-Menü „Zum
+Startbildschirm hinzufügen“ (Android/Chrome) bzw. Teilen → „Zum
+Home-Bildschirm“ (iPhone/Safari). Die Team-Zuordnung bleibt erhalten. Eine
+echte Installation mit eigenem Fenster bietet Android nur über HTTPS an; im
+lokalen Netz per HTTP entsteht dort eine Verknüpfung, die im Browser öffnet.
+
 ### Korrekturen
 
 - Ergebnisse lassen sich jederzeit überschreiben oder löschen.
@@ -99,10 +134,41 @@ Umgebungsvariablen des Servers:
 | `HOST`      | `0.0.0.0` | Netzwerkschnittstelle                                        |
 | `DATA_DIR`  | `./data`  | Ablage der Datei `tournament.json`                           |
 | `ADMIN_PIN` | –         | Wenn gesetzt, sind Änderungen nur mit dieser PIN möglich     |
+| `PUBLIC_URL`| –         | Adresse für Links und QR-Codes statt der IP (siehe unten)    |
 
 Beispiel: `ADMIN_PIN=4711 npm start`. Ohne PIN kann jeder im Netzwerk, der die
 Adresse kennt, Ergebnisse ändern. Die PIN wird unverschlüsselt (HTTP)
 übertragen – sie schützt vor Spaßvögeln im WLAN, nicht vor Angreifern.
+
+**Sobald Gäste im WLAN sind, unbedingt `ADMIN_PIN` setzen** – sonst kann jeder
+`/admin` öffnen.
+
+### Name statt IP-Adresse
+
+Die Teams scannen QR-Codes, tippen die Adresse also nie ab. Wer trotzdem einen
+Namen möchte, braucht keine eigene Domain:
+
+- **Rechnername im Netz**: Windows, macOS und die meisten Linux-Systeme sind
+  unter `http://<rechnername>.local:3000` erreichbar (mDNS). An einer
+  FRITZ!Box zusätzlich unter `http://<rechnername>.fritz.box:3000`.
+- **Eigener Name im Router**: Manche Router erlauben einen frei wählbaren
+  DNS-Eintrag (z. B. `turnier.lan`) für die IP des Laptops.
+
+Den Namen dann beim Start mitgeben, damit die QR-Codes ihn verwenden:
+
+```bash
+PUBLIC_URL=http://mein-laptop.fritz.box:3000 ADMIN_PIN=4711 npm start
+```
+
+Vorher mit einem Handy testen: `.local` wird nicht von jedem Android-Gerät
+aufgelöst. Im Zweifel ohne `PUBLIC_URL` starten – die IP im QR-Code
+funktioniert immer. Dem Laptop im Router eine feste IP geben, damit gedruckte
+Codes gültig bleiben.
+
+**Gast-WLAN:** Viele Router trennen Geräte im Gastnetz voneinander
+(„Geräte dürfen untereinander kommunizieren“ / Client-Isolation). Der Laptop
+muss im selben Netz wie die Handys sein und diese Trennung muss aus sein,
+sonst erreichen die Handys den Server nicht.
 
 Der Stand wird nach jeder Änderung gespeichert und übersteht einen Neustart.
 Zusätzlich gibt es im Reiter **System** eine Sicherung als Datei.

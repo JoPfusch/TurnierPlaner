@@ -4,7 +4,7 @@ import { DomainError } from './errors';
 import { validateFormat } from './format';
 import { dependentMatchIds } from './knockout';
 import { createDraw } from './schedule';
-import type { MatchId, Result, Settings, TournamentState } from './types';
+import type { MatchId, Proposal, Result, Settings, TournamentState } from './types';
 import { deriveView } from './view';
 
 /**
@@ -13,8 +13,41 @@ import { deriveView } from './view';
  * Throws a `DomainError` if the command breaks a tournament rule.
  */
 export function applyCommand(state: TournamentState, command: Command): TournamentState {
-  const next = reduce(state, command);
+  const next = pruneProposals(reduce(state, command));
   return { ...next, revision: state.revision + 1 };
+}
+
+/**
+ * Drops reports that no longer fit: the match got a result, its participants
+ * changed or are unknown again (e.g. after a correction earlier in the bracket).
+ */
+function pruneProposals(state: TournamentState): TournamentState {
+  const entries = Object.entries(state.proposals);
+  if (entries.length === 0) return state;
+  const schedule = new Map(deriveView(state).schedule.map((match) => [match.id, match]));
+  const valid = entries.filter(([matchId, proposal]) => {
+    const match = schedule.get(matchId);
+    return (
+      match !== undefined &&
+      match.playable &&
+      !match.result &&
+      (match.teamA === proposal.byTeamId || match.teamB === proposal.byTeamId)
+    );
+  });
+  return valid.length === entries.length ? state : { ...state, proposals: Object.fromEntries(valid) };
+}
+
+/** True if the server's timer has to send `expireProposals`. */
+export function hasDueProposals(state: TournamentState, now: number): boolean {
+  return dueProposals(state, now).length > 0;
+}
+
+function dueProposals(state: TournamentState, now: number): MatchId[] {
+  if (state.settings.confirmation !== 'timeout') return [];
+  const limit = state.settings.autoConfirmMinutes * 60_000;
+  return Object.entries(state.proposals)
+    .filter(([, proposal]) => !proposal.disputed && proposal.at + limit <= now)
+    .map(([matchId]) => matchId);
 }
 
 function reduce(state: TournamentState, command: Command): TournamentState {
@@ -68,11 +101,11 @@ function reduce(state: TournamentState, command: Command): TournamentState {
         tableNames.length,
         command.seed ?? 1,
       );
-      return { ...state, draw, results: {} };
+      return { ...state, draw, results: {}, proposals: {} };
     }
 
     case 'discardDraw':
-      return { ...state, draw: null, results: {} };
+      return { ...state, draw: null, results: {}, proposals: {} };
 
     case 'setResult':
       return setResult(state, command.matchId, { scoreA: command.scoreA, scoreB: command.scoreB });
@@ -85,7 +118,124 @@ function reduce(state: TournamentState, command: Command): TournamentState {
 
     case 'resetTournament':
       return { ...initialState(), revision: state.revision };
+
+    case 'proposeResult':
+      return proposeResult(state, command.matchId, {
+        scoreA: command.scoreA,
+        scoreB: command.scoreB,
+        byTeamId: command.teamId,
+        at: command.at,
+        disputed: false,
+      });
+
+    case 'confirmProposal': {
+      const proposal = requireProposal(state, command.matchId);
+      requireOpponent(state, command.matchId, proposal, command.teamId);
+      if (state.settings.confirmation === 'admin') {
+        throw new DomainError('Ergebnisse bestätigt bei diesem Turnier die Turnierleitung.');
+      }
+      return setResult(state, command.matchId, proposal);
+    }
+
+    case 'disputeProposal': {
+      const proposal = requireProposal(state, command.matchId);
+      requireOpponent(state, command.matchId, proposal, command.teamId);
+      return withProposal(state, command.matchId, { ...proposal, disputed: true });
+    }
+
+    case 'withdrawProposal': {
+      const proposal = requireProposal(state, command.matchId);
+      if (proposal.byTeamId !== command.teamId) {
+        throw new DomainError('Nur das meldende Team kann seine Meldung zurückziehen.');
+      }
+      return withProposal(state, command.matchId, null);
+    }
+
+    case 'acceptProposal':
+      return setResult(state, command.matchId, requireProposal(state, command.matchId));
+
+    case 'rejectProposal':
+      requireProposal(state, command.matchId);
+      return withProposal(state, command.matchId, null);
+
+    case 'expireProposals': {
+      let next = state;
+      for (const matchId of dueProposals(state, command.now)) {
+        const proposal = next.proposals[matchId];
+        if (!proposal) continue;
+        try {
+          next = setResult(next, matchId, proposal);
+        } catch (error) {
+          if (!(error instanceof DomainError)) throw error;
+          next = withProposal(next, matchId, { ...proposal, disputed: true }); // organiser decides
+        }
+      }
+      return next;
+    }
   }
+}
+
+function requireProposal(state: TournamentState, matchId: MatchId): Proposal {
+  const proposal = state.proposals[matchId];
+  if (!proposal) throw new DomainError('Für dieses Spiel liegt keine Meldung (mehr) vor.');
+  return proposal;
+}
+
+function requireOpponent(
+  state: TournamentState,
+  matchId: MatchId,
+  proposal: Proposal,
+  teamId: string,
+): void {
+  const match = deriveView(state).schedule.find((entry) => entry.id === matchId);
+  const plays = match !== undefined && (match.teamA === teamId || match.teamB === teamId);
+  if (!plays || proposal.byTeamId === teamId) {
+    throw new DomainError('Nur das gegnerische Team kann eine Meldung bestätigen oder ablehnen.');
+  }
+}
+
+function withProposal(
+  state: TournamentState,
+  matchId: MatchId,
+  proposal: Proposal | null,
+): TournamentState {
+  const proposals = { ...state.proposals };
+  if (proposal) proposals[matchId] = proposal;
+  else delete proposals[matchId];
+  return { ...state, proposals };
+}
+
+function validateScore(state: TournamentState, result: Result): void {
+  if (result.scoreA === result.scoreB) {
+    throw new DomainError('Ein Spiel braucht einen Sieger – Unentschieden gibt es nicht.');
+  }
+  if (Math.max(result.scoreA, result.scoreB) > state.settings.maxCups) {
+    throw new DomainError(`Es sind höchstens ${state.settings.maxCups} Becher möglich.`);
+  }
+}
+
+/** A team reports the result of one of its own matches. */
+function proposeResult(state: TournamentState, matchId: MatchId, proposal: Proposal): TournamentState {
+  if (!state.settings.teamReporting) {
+    throw new DomainError('Die Ergebnismeldung durch Teams ist ausgeschaltet.');
+  }
+  const match = deriveView(state).schedule.find((entry) => entry.id === matchId);
+  if (!match) throw new DomainError('Spiel nicht gefunden.');
+  if (match.teamA !== proposal.byTeamId && match.teamB !== proposal.byTeamId) {
+    throw new DomainError('Dein Team spielt in diesem Spiel nicht mit.');
+  }
+  if (match.result) throw new DomainError('Für dieses Spiel ist bereits ein Ergebnis eingetragen.');
+  if (!match.playable) throw new DomainError('Dieses Spiel kann noch nicht gemeldet werden.');
+  validateScore(state, proposal);
+
+  const existing = state.proposals[matchId];
+  if (existing && existing.byTeamId !== proposal.byTeamId) {
+    const same = existing.scoreA === proposal.scoreA && existing.scoreB === proposal.scoreB;
+    // Both teams report the same result: that is a confirmation.
+    if (same && state.settings.confirmation !== 'admin') return setResult(state, matchId, existing);
+    return same ? state : withProposal(state, matchId, { ...existing, disputed: true });
+  }
+  return withProposal(state, matchId, proposal);
 }
 
 function normalize(name: string): string {
@@ -138,17 +288,11 @@ function updateSettings(state: TournamentState, patch: Partial<Settings>): Tourn
 
 function setResult(state: TournamentState, matchId: MatchId, result: Result | null): TournamentState {
   if (!state.draw) throw new DomainError('Die Gruppen wurden noch nicht ausgelost.');
-  if (result) {
-    if (result.scoreA === result.scoreB) {
-      throw new DomainError('Ein Spiel braucht einen Sieger – Unentschieden gibt es nicht.');
-    }
-    if (Math.max(result.scoreA, result.scoreB) > state.settings.maxCups) {
-      throw new DomainError(`Es sind höchstens ${state.settings.maxCups} Becher möglich.`);
-    }
-  }
+  if (result) validateScore(state, result);
   const apply = (results: Readonly<Record<MatchId, Result>>): Record<MatchId, Result> => {
     const copy = { ...results };
-    if (result) copy[matchId] = result;
+    // store only the scores – `result` may be a proposal carrying extra fields
+    if (result) copy[matchId] = { scoreA: result.scoreA, scoreB: result.scoreB };
     else delete copy[matchId];
     return copy;
   };

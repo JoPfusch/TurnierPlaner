@@ -33,6 +33,7 @@ export function OverviewTab({ state, view }: TabProps) {
               teamNames={view.teamNames}
               settings={state.settings}
               provisional={view.seedsProvisional}
+              proposals={state.proposals}
             />
           </div>
         </div>
