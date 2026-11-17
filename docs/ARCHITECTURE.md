@@ -45,6 +45,7 @@ docs/        diese Datei
 | Datei        | Aufgabe                                                        |
 | ------------ | -------------------------------------------------------------- |
 | `index.ts`   | Start, sauberes Beenden                                        |
+| `listen.ts`  | HTTP oder HTTPS (mit optionaler Weiterleitung von HTTP)        |
 | `config.ts`  | Umgebungsvariablen                                             |
 | `app.ts`     | Routen, PIN-Prüfung, Fehlerabbildung, Auslieferung des Clients |
 | `store.ts`   | Zustand im Speicher, atomares Schreiben, Benachrichtigung      |
@@ -116,8 +117,8 @@ ein Handy kann also nur für das eigene Team handeln.
 **Startbildschirm:** `/api/manifest?start=/team/<token>` liefert ein Manifest
 mit dem Team-Link als Start-URL. Das ist nötig, weil abgelegte Web-Apps auf
 iOS einen eigenen Speicher haben und das im Browser gemerkte Token nicht
-sehen. Auf einen Service Worker wurde verzichtet: Er setzt HTTPS voraus und
-die App ist ohne Server ohnehin nutzlos.
+sehen. Auf einen Service Worker wurde verzichtet: Die App ist ohne Server
+ohnehin nutzlos, offline gäbe es nichts anzuzeigen.
 
 ### Server-Sent Events statt WebSocket
 
@@ -184,7 +185,7 @@ Befehle (`type`): `addTeams`, `renameTeam`, `removeTeam`, `updateSettings`,
 ## Grenzen und mögliche Erweiterungen
 
 - Ein Turnier je Serverinstanz.
-- Kein HTTPS: PIN und Team-Links gehen unverschlüsselt durchs WLAN.
+- Ohne `TLS_CERT`/`TLS_KEY` gehen PIN und Team-Links unverschlüsselt durchs WLAN.
 - Keine Unentschieden.
 - Ergebnis-Eingabe erfasst Sieger + Restbecher; das Datenmodell
   (`scoreA`/`scoreB`) erlaubt bereits beliebige Spielstände.

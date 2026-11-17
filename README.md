@@ -68,16 +68,65 @@ sie zusätzlich als QR-Code. Alle Geräte müssen im selben WLAN sein.
 - **Prognose**: Während der Gruppenphase zeigt der KO-Baum gestrichelt, wer
   nach aktuellem Stand weiterkäme.
 
+### Handys mit Teams koppeln
+
+Die Kopplung läuft über einen QR-Code pro Team. Er enthält einen geheimen
+Link (`…/team/<code>`); wer ihn öffnet, handelt für dieses Team. Ein Konto
+oder Passwort gibt es nicht.
+
+**Vorbereitung (Turnierleitung)**
+
+1. Server so starten, wie er am Turnierabend läuft – mit der endgültigen
+   Adresse (`PUBLIC_URL`, ggf. HTTPS, siehe [Konfiguration](#konfiguration)).
+   Die Adresse steckt im QR-Code: Ändert sie sich später, müssen die Codes neu
+   angezeigt bzw. gedruckt werden. Die Zuordnung selbst bleibt gültig.
+2. Teams im Reiter **Teams** eintragen. Das geht schon vor der Auslosung.
+3. Dort **„QR-Codes anzeigen“** wählen. Es gibt zwei Wege:
+   - *Am Empfang zeigen:* Team antippen, der Code wird groß angezeigt, das
+     Team scannt ihn vom Laptop oder Tablet. Nochmal tippen = zurück zur Liste.
+   - *Ausdrucken:* „Alle drucken“ erzeugt einen Bogen mit Teamname und Code
+     zum Ausschneiden und Verteilen.
+
+**Kopplung (Team)**
+
+1. Handy ins Turnier-WLAN bringen.
+2. Mit der Kamera den QR-Code des eigenen Teams scannen und den Link öffnen.
+3. Oben steht jetzt der Teamname, der Reiter **„Mein Team“** ist aktiv – das
+   Handy ist gekoppelt. Vor der Auslosung steht dort „Ihr seid dabei“, danach
+   das nächste Spiel mit Tisch und Gegner.
+4. Optional die Seite auf den Startbildschirm legen (siehe unten), damit sie
+   den Abend über mit einem Tipp erreichbar ist.
+
+**Gut zu wissen**
+
+- Mehrere Handys pro Team sind möglich: einfach denselben Code scannen.
+- Das Handy merkt sich die Zuordnung. Wer später nur `/team` öffnet, landet
+  wieder bei seinem Team.
+- Neues Handy oder Browserdaten gelöscht: Code erneut scannen.
+- Ohne Code ist `/team` eine reine Leseansicht (Tabellen, KO-Runde,
+  Spielplan) – für Zuschauer.
+- Der Code ist der Schlüssel des Teams: Wer ihn hat, kann für das Team melden.
+  Deshalb jedem Team nur den eigenen zeigen. Einzelne Codes lassen sich nicht
+  sperren; „Neues Turnier“ (Reiter System) macht alle ungültig.
+- Wird ein Team umbenannt, bleibt die Kopplung bestehen.
+
+**Als App ablegen:** In der Team-Ansicht über das Browser-Menü „App
+installieren“ bzw. „Zum Startbildschirm hinzufügen“ (Android/Chrome) oder
+Teilen → „Zum Home-Bildschirm“ (iPhone/Safari). Die Kopplung bleibt erhalten.
+Android bietet die Installation mit eigenem Fenster nur über
+[HTTPS](#https-im-eigenen-netz) an; per HTTP entsteht dort eine Verknüpfung,
+die im Browser öffnet.
+
 ### Ergebnisse von den Teams melden lassen
 
-1. Im Reiter **Teams** „QR-Codes anzeigen“ – einzeln groß zeigen oder alle
-   drucken. Eine Person pro Team scannt den Code ihres Teams; das Handy ist
-   damit dem Team zugeordnet (mehrere Handys pro Team sind möglich).
-2. Nach einem Spiel meldet ein Team: Sieger + Restbecher.
-3. Die Meldung erscheint sofort als **unbestätigt** (Beamer, Tabellen,
+1. Nach einem Spiel öffnet ein Team **„Mein Team“**, tippt beim Spiel auf
+   „Ergebnis melden“, wählt den Sieger und die Zahl der Restbecher.
+2. Die Meldung erscheint sofort als **unbestätigt** (Beamer, Tabellen,
    KO-Baum), zählt aber noch nicht. Der Tisch gilt als frei, das nächste Spiel
    rückt nach.
-4. Gültig wird sie je nach Einstellung (Reiter **Format**):
+3. Der Gegner sieht auf seinem Handy „Bitte bestätigen“ und tippt „Stimmt“
+   oder „Stimmt nicht“.
+4. Gültig wird die Meldung je nach Einstellung (Reiter **Format**):
 
    | Einstellung                         | Meldung gilt, wenn …                                              |
    | ----------------------------------- | ----------------------------------------------------------------- |
@@ -85,19 +134,13 @@ sie zusätzlich als QR-Code. Alle Geräte müssen im selben WLAN sein.
    | Gegner bestätigt, sonst automatisch | wie oben, sonst von selbst nach der eingestellten Minutenzahl      |
    | Turnierleitung bestätigt immer      | die Turnierleitung sie im Reiter **Spiele** übernimmt              |
 
-5. Tippt der Gegner „Stimmt nicht“ (oder meldet etwas anderes), ist die Meldung
-   **strittig** und wird nie automatisch übernommen – die Turnierleitung
-   entscheidet. Sie kann ohnehin jede Meldung übernehmen, verwerfen oder das
-   Ergebnis direkt eintragen.
-
-Der QR-Code ist der Schlüssel des Teams: Wer ihn hat, kann für das Team
-melden. „Neues Turnier“ macht alle alten Codes ungültig.
-
-**Als App ablegen:** In der Team-Ansicht über das Browser-Menü „Zum
-Startbildschirm hinzufügen“ (Android/Chrome) bzw. Teilen → „Zum
-Home-Bildschirm“ (iPhone/Safari). Die Team-Zuordnung bleibt erhalten. Eine
-echte Installation mit eigenem Fenster bietet Android nur über HTTPS an; im
-lokalen Netz per HTTP entsteht dort eine Verknüpfung, die im Browser öffnet.
+5. Bei „Stimmt nicht“ (oder einer abweichenden Meldung des Gegners) ist die
+   Meldung **strittig** und wird nie automatisch übernommen – die
+   Turnierleitung entscheidet im Reiter **Spiele** („Zu bestätigen“). Sie kann
+   ohnehin jede Meldung übernehmen, verwerfen oder das Ergebnis direkt
+   eintragen.
+6. Das meldende Team kann seine Meldung zurückziehen oder korrigieren, solange
+   sie nicht bestätigt ist.
 
 ### Korrekturen
 
@@ -135,10 +178,13 @@ Umgebungsvariablen des Servers:
 | `DATA_DIR`  | `./data`  | Ablage der Datei `tournament.json`                           |
 | `ADMIN_PIN` | –         | Wenn gesetzt, sind Änderungen nur mit dieser PIN möglich     |
 | `PUBLIC_URL`| –         | Adresse für Links und QR-Codes statt der IP (siehe unten)    |
+| `TLS_CERT`  | –         | Zertifikat inkl. Kette (PEM) – schaltet HTTPS ein            |
+| `TLS_KEY`   | –         | privater Schlüssel (PEM), zusammen mit `TLS_CERT`            |
+| `HTTP_REDIRECT_PORT` | – | zusätzlicher HTTP-Port, der nur auf HTTPS weiterleitet       |
 
 Beispiel: `ADMIN_PIN=4711 npm start`. Ohne PIN kann jeder im Netzwerk, der die
-Adresse kennt, Ergebnisse ändern. Die PIN wird unverschlüsselt (HTTP)
-übertragen – sie schützt vor Spaßvögeln im WLAN, nicht vor Angreifern.
+Adresse kennt, Ergebnisse ändern. Ohne HTTPS gehen PIN und Team-Links
+unverschlüsselt durchs WLAN – das schützt vor Spaßvögeln, nicht vor Angreifern.
 
 **Sobald Gäste im WLAN sind, unbedingt `ADMIN_PIN` setzen** – sonst kann jeder
 `/admin` öffnen.
@@ -169,6 +215,56 @@ Codes gültig bleiben.
 („Geräte dürfen untereinander kommunizieren“ / Client-Isolation). Der Laptop
 muss im selben Netz wie die Handys sein und diese Trennung muss aus sein,
 sonst erreichen die Handys den Server nicht.
+
+### HTTPS im eigenen Netz
+
+Mit einer eigenen Domain läuft der Server lokal mit einem echten Zertifikat –
+ohne eigenen DNS-Server und ohne dass der Laptop aus dem Internet erreichbar
+ist. Vorteile: Android bietet die App-Installation an, PIN und Team-Links sind
+verschlüsselt.
+
+1. **Feste IP:** Dem Laptop im Router eine feste Adresse geben, z. B.
+   `192.168.178.20`.
+2. **DNS-Eintrag beim Domain-Anbieter:** Subdomain als A-Record auf diese
+   lokale IP, z. B. `turnier.example.de → 192.168.178.20`.
+3. **Zertifikat per DNS-Challenge** (Let's Encrypt prüft nur einen
+   TXT-Eintrag der Domain). Beispiel mit [acme.sh](https://github.com/acmesh-official/acme.sh)
+   und der Netcup-DNS-API (Zugangsdaten im Netcup-CCP unter Stammdaten → API):
+
+   ```bash
+   export NC_CID="<Kundennummer>" NC_Apikey="<API-Key>" NC_Apipw="<API-Passwort>"
+   acme.sh --issue --dns dns_netcup --dnssleep 900 -d turnier.example.de
+   ```
+
+   Netcup rollt DNS-Änderungen langsam aus, daher die Wartezeit. Das Ergebnis
+   liegt in `~/.acme.sh/turnier.example.de_ecc/`. Das Zertifikat kann auf
+   einem beliebigen Rechner ausgestellt und kopiert werden; gebraucht werden
+   `fullchain.cer` und `turnier.example.de.key`.
+4. **Router:** FRITZ!Boxen blockieren öffentliche Namen, die auf lokale
+   Adressen zeigen. Die Subdomain unter Heimnetz → Netzwerk →
+   Netzwerkeinstellungen → **DNS-Rebind-Schutz** als Ausnahme eintragen.
+5. **Starten:**
+
+   ```bash
+   TLS_CERT=~/.acme.sh/turnier.example.de_ecc/fullchain.cer \
+   TLS_KEY=~/.acme.sh/turnier.example.de_ecc/turnier.example.de.key \
+   PORT=443 HTTP_REDIRECT_PORT=80 \
+   PUBLIC_URL=https://turnier.example.de \
+   ADMIN_PIN=4711 npm start
+   ```
+
+   `PUBLIC_URL` muss der Name aus dem Zertifikat sein – über die IP melden die
+   Handys einen Zertifikatsfehler. Die Ports 443/80 brauchen unter Linux und
+   macOS Administratorrechte; alternativ z. B. `PORT=3443` und
+   `PUBLIC_URL=https://turnier.example.de:3443`.
+
+Hinweise:
+
+- Das Zertifikat gilt 90 Tage und wird nur beim Start gelesen: kurz vor dem
+  Turnier ausstellen oder erneuern (`acme.sh --renew -d …`) und neu starten.
+- Vor dem Turnier mit einem Handy **im Gast-WLAN** testen, ob der Name
+  aufgelöst wird (Rebind-Schutz, abweichender DNS im Gastnetz).
+- Im Entwicklungsmodus (`npm run dev`) bleibt es bei HTTP.
 
 Der Stand wird nach jeder Änderung gespeichert und übersteht einen Neustart.
 Zusätzlich gibt es im Reiter **System** eine Sicherung als Datei.

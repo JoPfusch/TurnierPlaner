@@ -3,7 +3,12 @@ import type { AddressInfo } from 'node:net';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
+import { execFileSync } from 'node:child_process';
+import https from 'node:https';
+import express from 'express';
 import { createApp } from '../src/server/app';
+import { loadConfig } from '../src/server/config';
+import { startServer } from '../src/server/listen';
 import { TournamentStore } from '../src/server/store';
 import { TeamTokens } from '../src/server/tokens';
 
@@ -24,7 +29,7 @@ async function start(adminPin = ''): Promise<void> {
   store = new TournamentStore(dir);
   await store.load();
   tokens = new TeamTokens(dir);
-  const app = createApp(store, { port: 0, host: '127.0.0.1', dataDir: dir, adminPin, clientDir: '/nonexistent', publicUrl: '' }, tokens);
+  const app = createApp(store, { port: 0, host: '127.0.0.1', dataDir: dir, adminPin, clientDir: '/nonexistent', publicUrl: '', tls: null }, tokens);
   const server = app.listen(0, '127.0.0.1');
   await new Promise((resolve) => server.once('listening', resolve));
   base = `http://127.0.0.1:${(server.address() as AddressInfo).port}`;
@@ -129,5 +134,43 @@ describe('api', () => {
     expect(manifest.start_url).toBe('/team/abc-123');
     const evil = (await (await fetch(`${base}/api/manifest?start=https://evil.example`)).json()) as { start_url: string };
     expect(evil.start_url).toBe('/team');
+  });
+});
+
+describe('https', () => {
+  it('requires certificate and key together', () => {
+    expect(() => loadConfig({ TLS_CERT: 'a.pem' })).toThrow(/TLS_CERT und TLS_KEY/);
+    expect(loadConfig({}).tls).toBeNull();
+    expect(loadConfig({ TLS_CERT: 'a.pem', TLS_KEY: 'b.pem', HTTP_REDIRECT_PORT: '8080' }).tls).toMatchObject({ redirectPort: 8080 });
+  });
+
+  it('serves via TLS and redirects plain HTTP', async () => {
+    const tmp = await mkdtemp(path.join(tmpdir(), 'turnier-tls-'));
+    const certFile = path.join(tmp, 'cert.pem');
+    const keyFile = path.join(tmp, 'key.pem');
+    execFileSync('openssl', ['req', '-x509', '-newkey', 'rsa:2048', '-nodes', '-days', '1', '-subj', '/CN=localhost', '-keyout', keyFile, '-out', certFile], { stdio: 'ignore' });
+    const app = express().get('/ping', (_req, res) => void res.send('pong'));
+    const port = 20000 + Math.floor(Math.random() * 20000);
+    const config = { ...loadConfig({}), host: '127.0.0.1', port, tls: { certFile, keyFile, redirectPort: port + 1 } };
+    const server = await startServer(app, config);
+    try {
+      expect(server.scheme).toBe('https');
+      const body = await new Promise<string>((resolve, reject) => {
+        https
+          .get({ host: '127.0.0.1', port, path: '/ping', rejectUnauthorized: false }, (res) => {
+            let data = '';
+            res.on('data', (chunk: Buffer) => (data += chunk.toString()));
+            res.on('end', () => resolve(data));
+          })
+          .on('error', reject);
+      });
+      expect(body).toBe('pong');
+      const redirect = await fetch(`http://127.0.0.1:${port + 1}/team/abc?x=1`, { redirect: 'manual' });
+      expect(redirect.status).toBe(308);
+      expect(redirect.headers.get('location')).toBe(`https://127.0.0.1:${port}/team/abc?x=1`);
+    } finally {
+      await server.close();
+      await rm(tmp, { recursive: true, force: true });
+    }
   });
 });
