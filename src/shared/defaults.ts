@@ -6,7 +6,7 @@ export const LIMITS = {
   maxGroups: 16,
   maxTables: 32,
   maxKoSize: 64,
-  maxTeamNameLength: 40,
+  maxTeamNameLength: 70,
 } as const;
 
 export const CRITERION_LABELS: Record<CriterionKey, string> = {
