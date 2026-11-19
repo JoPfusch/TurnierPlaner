@@ -46,6 +46,30 @@ export function TextField({ value, onCommit, type = 'text', ariaLabel, ...rest }
   );
 }
 
+interface TextAreaFieldProps {
+  value: string;
+  onCommit: (value: string) => void;
+  rows?: number;
+  maxLength?: number;
+  placeholder?: string;
+}
+
+/** Multi-line variant of `TextField`; commits on blur only (Enter adds a line). */
+export function TextAreaField({ value, onCommit, ...rest }: TextAreaFieldProps) {
+  const [draft, setDraft] = useState(value);
+  useEffect(() => setDraft(value), [value]);
+  return (
+    <textarea
+      {...rest}
+      value={draft}
+      onChange={(event) => setDraft(event.target.value)}
+      onBlur={() => {
+        if (draft !== value) onCommit(draft);
+      }}
+    />
+  );
+}
+
 interface NumberFieldProps {
   value: number;
   min: number;

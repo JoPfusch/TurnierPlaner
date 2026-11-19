@@ -4,8 +4,10 @@ import { sendCommand } from '../api';
 import { useTournament } from '../useTournament';
 import type { TabProps } from './common';
 import { FormatTab } from './FormatTab';
+import { InfoTab } from './InfoTab';
 import { MatchesTab } from './MatchesTab';
 import { OverviewTab } from './OverviewTab';
+import { PinGate } from './PinGate';
 import { SystemTab } from './SystemTab';
 import { TeamsTab } from './TeamsTab';
 import '../styles/admin.css';
@@ -15,6 +17,7 @@ const TABS = [
   { id: 'format', label: 'Format', component: FormatTab },
   { id: 'matches', label: 'Spiele', component: MatchesTab },
   { id: 'overview', label: 'Tabellen', component: OverviewTab },
+  { id: 'info', label: 'Infos', component: InfoTab },
   { id: 'system', label: 'System', component: SystemTab },
 ] as const;
 type TabId = (typeof TABS)[number]['id'];
@@ -31,8 +34,17 @@ function tabFromHash(): TabId {
   return TABS.some((tab) => tab.id === id) ? (id as TabId) : 'teams';
 }
 
-/** Administration for laptop and phone. All changes go through `run`. */
+/** Administration for laptop and phone; asks for the PIN first if one is configured. */
 export function AdminApp() {
+  return (
+    <PinGate>
+      <Administration />
+    </PinGate>
+  );
+}
+
+/** All changes go through `run`. */
+function Administration() {
   const { state, view, connected } = useTournament();
   const [tab, setTab] = useState<TabId>(tabFromHash);
   const [error, setError] = useState<string | null>(null);

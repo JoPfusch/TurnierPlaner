@@ -266,6 +266,8 @@ const RANKING_KEYS = ['koSize', 'thirdPlaceMatch', 'pointsWin', 'pointsLoss', 'c
 function updateSettings(state: TournamentState, patch: Partial<Settings>): TournamentState {
   const settings: Settings = { ...state.settings, ...patch };
   settings.criteria = [...new Set(settings.criteria)];
+  // one description per table – follows changes of the table count
+  settings.tableDescriptions = settings.tableNames.map((_, index) => settings.tableDescriptions[index] ?? '');
   const changed = (key: keyof Settings): boolean =>
     JSON.stringify(settings[key]) !== JSON.stringify(state.settings[key]);
 

@@ -137,6 +137,40 @@ describe('api', () => {
   });
 });
 
+describe('admin login and venue map', () => {
+  it('checks the PIN without changing anything', async () => {
+    await start('1234');
+    expect((await fetch(`${base}/api/admin/check`)).status).toBe(401);
+    expect((await fetch(`${base}/api/admin/check`, { headers: { 'x-admin-pin': '9999' } })).status).toBe(401);
+    expect((await fetch(`${base}/api/admin/check`, { headers: { 'x-admin-pin': '1234' } })).status).toBe(204);
+    expect(store.current.revision).toBe(0);
+  });
+
+  it('stores, serves and removes the venue map', async () => {
+    await start('1234');
+    const png = Buffer.from('89504e470d0a1a0a', 'hex');
+    const put = (type: string, pin?: string) =>
+      fetch(`${base}/api/venue-map`, { method: 'PUT', headers: { 'Content-Type': type, ...(pin ? { 'x-admin-pin': pin } : {}) }, body: png });
+    expect((await put('image/png')).status).toBe(401);
+    expect((await put('image/gif', '1234')).status).toBe(400);
+    expect((await fetch(`${base}/api/venue-map`)).status).toBe(404);
+
+    expect((await put('image/png', '1234')).status).toBe(204);
+    expect(store.current.settings.venueMapVersion).toEqual(expect.any(Number));
+    const image = await fetch(`${base}/api/venue-map`);
+    expect(image.headers.get('content-type')).toBe('image/png');
+    expect(Buffer.from(await image.arrayBuffer())).toEqual(png);
+
+    // a new upload replaces the old file, whatever its type
+    expect((await put('image/jpeg', '1234')).status).toBe(204);
+    expect((await fetch(`${base}/api/venue-map`)).headers.get('content-type')).toBe('image/jpeg');
+
+    expect((await fetch(`${base}/api/venue-map`, { method: 'DELETE', headers: { 'x-admin-pin': '1234' } })).status).toBe(204);
+    expect(store.current.settings.venueMapVersion).toBeNull();
+    expect((await fetch(`${base}/api/venue-map`)).status).toBe(404);
+  });
+});
+
 describe('https', () => {
   it('requires certificate and key together', () => {
     expect(() => loadConfig({ TLS_CERT: 'a.pem' })).toThrow(/TLS_CERT und TLS_KEY/);

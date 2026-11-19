@@ -14,6 +14,7 @@ import type { ServerConfig } from './config';
 import { lanAddresses } from './network';
 import type { TournamentStore } from './store';
 import type { TeamTokens } from './tokens';
+import { deleteVenueMap, findVenueMap, saveVenueMap, VENUE_MAP_TYPES } from './venueMap';
 
 /**
  * HTTP API
@@ -27,6 +28,10 @@ import type { TeamTokens } from './tokens';
  *   GET  /api/team/:token            which team a phone belongs to
  *   POST /api/team/:token/actions    report / confirm / dispute / withdraw a result
  *   GET  /api/manifest               web app manifest ("install" on the home screen)
+ *   GET  /api/admin/check            204 if the PIN is right (login of the administration)
+ *   GET  /api/venue-map              venue map image
+ *   PUT  /api/venue-map              upload the venue map (PIN protected, body = image)
+ *   DELETE /api/venue-map            remove the venue map (PIN protected)
  *
  * Everything else serves the built client (single-page app).
  */
@@ -86,6 +91,42 @@ export function createApp(store: TournamentStore, config: ServerConfig, tokens: 
 
   app.post('/api/import', requirePin, (req, res) => {
     res.json(store.replace(parseState(req.body)));
+  });
+
+  app.get('/api/admin/check', requirePin, (_req, res) => {
+    res.status(204).end();
+  });
+
+  app.get('/api/venue-map', async (_req, res) => {
+    const file = await findVenueMap(config.dataDir);
+    if (!file) {
+      res.status(404).json({ error: 'Kein Tischplan hinterlegt.' });
+      return;
+    }
+    // The URL carries the version (?v=…), so the image may be cached for good.
+    res.set('Cache-Control', 'public, max-age=31536000, immutable').sendFile(file);
+  });
+
+  app.put(
+    '/api/venue-map',
+    requirePin,
+    express.raw({ type: Object.keys(VENUE_MAP_TYPES), limit: '8mb' }),
+    async (req, res) => {
+      const contentType = req.get('content-type') ?? '';
+      if (!Buffer.isBuffer(req.body) || req.body.length === 0 || !VENUE_MAP_TYPES[contentType]) {
+        res.status(400).json({ error: 'Bitte ein Bild als JPEG, PNG oder WebP hochladen.' });
+        return;
+      }
+      await saveVenueMap(config.dataDir, contentType, req.body);
+      store.dispatch({ type: 'updateSettings', patch: { venueMapVersion: Date.now() } });
+      res.status(204).end();
+    },
+  );
+
+  app.delete('/api/venue-map', requirePin, async (_req, res) => {
+    await deleteVenueMap(config.dataDir);
+    store.dispatch({ type: 'updateSettings', patch: { venueMapVersion: null } });
+    res.status(204).end();
   });
 
   app.get('/api/team-links', requirePin, async (_req, res) => {
@@ -179,6 +220,8 @@ const onError: ErrorRequestHandler = (error, _req, res, _next) => {
     res.status(400).json({ error: 'Ungültige Eingabe.', details: error.issues });
   } else if (error instanceof SyntaxError) {
     res.status(400).json({ error: 'Ungültiges JSON.' });
+  } else if ((error as { type?: string }).type === 'entity.too.large') {
+    res.status(413).json({ error: 'Die Datei ist zu groß.' });
   } else {
     console.error(error);
     res.status(500).json({ error: 'Interner Fehler.' });

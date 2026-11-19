@@ -61,6 +61,12 @@ export interface Settings {
   confirmation: ConfirmationMode;
   /** Minutes after which an unanswered report is accepted (mode `timeout`). */
   autoConfirmMinutes: number;
+  /** House rules shown to the teams (plain text, line breaks are kept). */
+  rules: string;
+  /** Where to find each table, parallel to `tableNames` (e.g. "Garage, links"). */
+  tableDescriptions: string[];
+  /** Version of the uploaded venue map (upload time); `null` = no map. */
+  venueMapVersion: number | null;
 }
 
 /**

@@ -2,7 +2,7 @@ import { useEffect, useState } from 'react';
 import type { TeamAction } from '../../shared/commands';
 import type { Settings, TournamentState } from '../../shared/types';
 import type { MatchView, TournamentView } from '../../shared/view';
-import { fetchTeamId, sendTeamAction } from '../api';
+import { fetchTeamId, sendTeamAction, venueMapUrl } from '../api';
 import { BracketView } from '../components/BracketView';
 import { GroupTable } from '../components/GroupTable';
 import { clockTime } from '../time';
@@ -18,7 +18,7 @@ import '../styles/team.css';
  *                    confirming results. The token comes from the team's QR code.
  */
 
-type Tab = 'me' | 'groups' | 'bracket' | 'schedule';
+type Tab = 'me' | 'groups' | 'bracket' | 'schedule' | 'info';
 
 const TOKEN_KEY = 'turnierplaner.teamToken';
 
@@ -89,6 +89,7 @@ export function TeamApp() {
     ['groups', 'Tabellen'],
     ['bracket', 'KO-Runde'],
     ['schedule', 'Spielplan'],
+    ...(hasInfo(state.settings) ? ([['info', 'Infos']] as Array<[Tab, string]>) : []),
   ];
 
   return (
@@ -130,6 +131,7 @@ export function TeamApp() {
         {active === 'groups' && <Groups view={view} />}
         {active === 'bracket' && <Bracket state={state} view={view} />}
         {active === 'schedule' && <Schedule state={state} view={view} highlight={myTeamId} />}
+        {active === 'info' && <Info settings={state.settings} />}
         <InstallHint />
       </main>
 
@@ -260,6 +262,9 @@ function TeamMatchCard({ match, teamId, state, view, act, next }: TeamMatchCardP
         </span>
         <span>{settings.tableNames[match.table]}</span>
       </header>
+      {settings.tableDescriptions[match.table] && (
+        <p className="t-place">📍 {settings.tableDescriptions[match.table]}</p>
+      )}
       <div className="t-versus">
         <span className="muted">gegen</span> <strong>{opponent}</strong>
         {shown && (
@@ -464,6 +469,52 @@ function Schedule({ state, view, highlight }: ScheduleProps) {
         })}
       </tbody>
     </table>
+  );
+}
+
+function hasInfo(settings: Settings): boolean {
+  return (
+    settings.rules.trim() !== '' ||
+    settings.venueMapVersion !== null ||
+    settings.tableDescriptions.some((description) => description.trim() !== '')
+  );
+}
+
+/** House rules, venue map and where each table is. */
+function Info({ settings }: { settings: Settings }) {
+  const mapUrl = venueMapUrl(settings.venueMapVersion);
+  const places = settings.tableNames
+    .map((name, index) => ({ name, description: settings.tableDescriptions[index] ?? '' }))
+    .filter((table) => table.description.trim() !== '');
+  return (
+    <div className="a-stack">
+      {settings.rules.trim() && (
+        <section className="card">
+          <h2>Regeln</h2>
+          <div className="rules-text">{settings.rules.trim()}</div>
+        </section>
+      )}
+      {(mapUrl || places.length > 0) && (
+        <section className="card">
+          <h2>Tische</h2>
+          {places.length > 0 && (
+            <dl className="t-places">
+              {places.map((table) => (
+                <div key={table.name}>
+                  <dt>{table.name}</dt>
+                  <dd>{table.description}</dd>
+                </div>
+              ))}
+            </dl>
+          )}
+          {mapUrl && (
+            <a href={mapUrl} target="_blank" rel="noreferrer" title="Groß anzeigen">
+              <img className="venue-map" src={mapUrl} alt="Tischplan" />
+            </a>
+          )}
+        </section>
+      )}
+    </div>
   );
 }
 

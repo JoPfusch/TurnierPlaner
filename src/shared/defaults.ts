@@ -7,6 +7,8 @@ export const LIMITS = {
   maxTables: 32,
   maxKoSize: 64,
   maxTeamNameLength: 70,
+  maxRulesLength: 5000,
+  maxTableDescriptionLength: 80,
 } as const;
 
 export const CRITERION_LABELS: Record<CriterionKey, string> = {
@@ -39,6 +41,9 @@ export function defaultSettings(): Settings {
     teamReporting: true,
     confirmation: 'opponent',
     autoConfirmMinutes: 5,
+    rules: '',
+    tableDescriptions: [],
+    venueMapVersion: null,
   };
 }
 

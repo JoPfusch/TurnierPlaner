@@ -15,7 +15,7 @@ export interface ServerInfo {
 
 export class ApiError extends Error {}
 
-function storedPin(): string {
+export function storedPin(): string {
   try {
     return localStorage.getItem(PIN_KEY) ?? '';
   } catch {
@@ -23,7 +23,7 @@ function storedPin(): string {
   }
 }
 
-function storePin(pin: string): void {
+export function storePin(pin: string): void {
   try {
     localStorage.setItem(PIN_KEY, pin);
   } catch {
@@ -97,4 +97,36 @@ export function shareOrigins(info: ServerInfo | null): string[] {
   const local = hostname === 'localhost' || hostname === '127.0.0.1';
   const hosts = local && info && info.addresses.length > 0 ? info.addresses : [hostname];
   return hosts.map((host) => `${protocol}//${host}${port ? `:${port}` : ''}`);
+}
+
+/** True if `pin` is accepted by the server (or no PIN is configured). */
+export async function checkPin(pin: string): Promise<boolean> {
+  const response = await fetch('/api/admin/check', { headers: { 'x-admin-pin': pin } });
+  return response.ok;
+}
+
+/** Uploads the venue map. The image is expected to be JPEG, PNG or WebP. */
+export async function uploadVenueMap(image: Blob): Promise<void> {
+  const response = await fetch('/api/venue-map', {
+    method: 'PUT',
+    headers: { 'Content-Type': image.type, 'x-admin-pin': storedPin() },
+    body: image,
+  });
+  if (!response.ok) {
+    const payload = (await response.json().catch(() => ({}))) as { error?: string };
+    throw new ApiError(payload.error ?? `Fehler ${response.status}`);
+  }
+}
+
+export async function deleteVenueMap(): Promise<void> {
+  const response = await fetch('/api/venue-map', {
+    method: 'DELETE',
+    headers: { 'x-admin-pin': storedPin() },
+  });
+  if (!response.ok) throw new ApiError(`Fehler ${response.status}`);
+}
+
+/** URL of the venue map image, or `null` if none is uploaded. */
+export function venueMapUrl(version: number | null): string | null {
+  return version === null ? null : `/api/venue-map?v=${version}`;
 }

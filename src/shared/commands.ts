@@ -30,6 +30,11 @@ export const settingsSchema = z.object({
   teamReporting: z.boolean(),
   confirmation: z.enum(CONFIRMATION_MODES),
   autoConfirmMinutes: z.number().int().min(1).max(240),
+  rules: z.string().max(LIMITS.maxRulesLength),
+  tableDescriptions: z
+    .array(z.string().trim().max(LIMITS.maxTableDescriptionLength))
+    .max(LIMITS.maxTables),
+  venueMapVersion: z.number().int().nullable(),
 });
 
 export const commandSchema = z.discriminatedUnion('type', [

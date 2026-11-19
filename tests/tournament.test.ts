@@ -199,3 +199,25 @@ describe('results reported by teams', () => {
     expect(loaded.settings).toMatchObject({ teamReporting: true, confirmation: 'opponent', groupCount: 2 });
   });
 });
+
+describe('information for the teams', () => {
+  it('keeps one table description per table', () => {
+    let state = run(initialState(), { type: 'updateSettings', patch: { tableNames: ['A', 'B', 'C'], tableDescriptions: ['Garage'] } });
+    expect(state.settings.tableDescriptions).toEqual(['Garage', '', '']);
+    state = run(state, { type: 'updateSettings', patch: { tableNames: ['A'] } });
+    expect(state.settings.tableDescriptions).toEqual(['Garage']);
+  });
+
+  it('can change rules and descriptions after the draw', () => {
+    const state = run(drawnTournament(8, 2, 4), {
+      type: 'updateSettings',
+      patch: { rules: 'Ellbogen hinter die Kante', tableDescriptions: ['Keller', 'Garten'] },
+    });
+    expect(state.settings).toMatchObject({ rules: 'Ellbogen hinter die Kante', tableDescriptions: ['Keller', 'Garten'] });
+  });
+
+  it('loads data files without the new fields', () => {
+    const { rules: _r, tableDescriptions: _t, venueMapVersion: _v, ...oldSettings } = initialState().settings;
+    expect(parseState({ ...initialState(), settings: oldSettings }).settings).toMatchObject({ rules: '', tableDescriptions: [], venueMapVersion: null });
+  });
+});

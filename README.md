@@ -40,11 +40,25 @@ sie zusätzlich als QR-Code. Alle Geräte müssen im selben WLAN sein.
 2. **Format** festlegen: Tische, Größe der KO-Runde, Gruppenanzahl, Wertung.
    Die Tabelle „Möglichkeiten“ zeigt für die aktuelle Teamanzahl jede
    Gruppenanzahl mit Spielanzahl, Dauer und nötigen Zusatzkriterien.
-3. **Auslosen** – Gruppen, Spielplan und Tische werden zufällig erzeugt.
-4. **Spiele**: Sieger antippen, dann die Zahl der übrig gebliebenen Becher.
+3. Optional **Infos** für die Teams hinterlegen: Regeln, wo welcher Tisch
+   steht, Tischplan als Bild. Die Teams sehen das am Handy im Reiter „Infos“,
+   die Tischbeschreibung zusätzlich bei jedem Spiel.
+4. **Auslosen** – Gruppen, Spielplan und Tische werden zufällig erzeugt.
+5. **Spiele**: Sieger antippen, dann die Zahl der übrig gebliebenen Becher.
    Tabellen und KO-Baum rechnen sofort neu, der Beamer zieht mit.
-5. Sind alle Gruppenspiele eingetragen, steht die KO-Runde fest und ihre
+6. Sind alle Gruppenspiele eingetragen, steht die KO-Runde fest und ihre
    Ergebnisse können eingetragen werden – bis zum Finale.
+
+### Zeiten
+
+„Minuten pro Spiel“ und „Beginn“ dienen nur der Planung: Daraus entstehen die
+angezeigten Uhrzeiten und die geschätzte Dauer. Ein Spiel endet nie
+automatisch – es ist erst vorbei, wenn ein Ergebnis eingetragen bzw.
+bestätigt ist. Die Uhrzeiten werden nicht an den tatsächlichen Verlauf
+angepasst. Wer bis zum Ende spielt, egal wie lange es dauert, lässt „Beginn“
+leer: Dann zeigen Beamer und Handys nur die Reihenfolge („Runde 3“) statt
+Uhrzeiten, die nicht stimmen. Die automatische Bestätigung von Meldungen
+(siehe unten) ist davon unabhängig.
 
 ### Regeln der Berechnung
 
@@ -189,6 +203,12 @@ unverschlüsselt durchs WLAN – das schützt vor Spaßvögeln, nicht vor Angrei
 **Sobald Gäste im WLAN sind, unbedingt `ADMIN_PIN` setzen** – sonst kann jeder
 `/admin` öffnen.
 
+Mit PIN fragt `/admin` beim Öffnen danach. Ein Gerät, auf dem die PIN einmal
+stimmte, merkt sie sich und fragt nicht erneut (im Browser die Website-Daten
+löschen, um sich abzumelden). Wird die PIN am Server geändert, fragt jedes
+Gerät beim nächsten Öffnen neu. Beamer (`/`) und Team-Ansicht (`/team`)
+bleiben ohne PIN lesbar.
+
 ### Name statt IP-Adresse
 
 Die Teams scannen QR-Codes, tippen die Adresse also nie ab. Wer trotzdem einen
@@ -267,6 +287,7 @@ Hinweise:
 - Im Entwicklungsmodus (`npm run dev`) bleibt es bei HTTP.
 
 Der Stand wird nach jeder Änderung gespeichert und übersteht einen Neustart.
+Der Tischplan liegt als Bild ebenfalls in `DATA_DIR`.
 Zusätzlich gibt es im Reiter **System** eine Sicherung als Datei.
 
 ## Entwicklung

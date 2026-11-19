@@ -51,6 +51,7 @@ docs/        diese Datei
 | `store.ts`   | Zustand im Speicher, atomares Schreiben, Benachrichtigung      |
 | `network.ts` | LAN-Adressen für Links und QR-Codes                            |
 | `tokens.ts`  | geheime Team-Links (Handy ↔ Team), getrennt vom Turnierzustand |
+| `venueMap.ts`| Tischplan-Bild im Datenordner                                  |
 
 ### `src/client`
 
@@ -62,6 +63,7 @@ docs/        diese Datei
 | `api.ts`                 | Befehle senden, PIN-Abfrage, Import                   |
 | `display/DisplayApp.tsx` | Vollbild: Seitenwechsel, Skalierung, Tisch-Leiste     |
 | `admin/*Tab.tsx`         | je ein Reiter der Verwaltung                          |
+| `admin/PinGate.tsx`      | PIN-Abfrage beim Öffnen der Verwaltung                |
 | `components/`            | Gruppentabelle und KO-Baum (von beiden genutzt)       |
 | `styles/`                | `base.css` (gemeinsam), `display.css`, `admin.css`    |
 
@@ -120,6 +122,15 @@ iOS einen eigenen Speicher haben und das im Browser gemerkte Token nicht
 sehen. Auf einen Service Worker wurde verzichtet: Die App ist ohne Server
 ohnehin nutzlos, offline gäbe es nichts anzuzeigen.
 
+### Tischplan
+
+Das Bild liegt als Datei im Datenordner, nicht im Zustand – der wird bei jeder
+Änderung an alle Geräte geschickt. Der Zustand trägt nur `venueMapVersion`
+(Zeitpunkt des Uploads); die Clients laden `/api/venue-map?v=<version>` und
+dürfen das Bild deshalb unbegrenzt cachen. Die Verwaltung verkleinert Fotos
+vor dem Hochladen auf 2000 px und speichert sie als JPEG; so funktionieren
+auch iPhone-Fotos (HEIC), sofern der Browser sie lesen kann.
+
 ### Server-Sent Events statt WebSocket
 
 Die Live-Daten fließen nur vom Server zum Client, Änderungen sind normale
@@ -175,6 +186,9 @@ werden auf mehrere Seiten verteilt.
 | GET     | `/api/team/:token` | Team zu einem Token                            |
 | POST    | `/api/team/:token/actions` | `propose`, `confirm`, `dispute`, `withdraw` |
 | GET     | `/api/manifest` | Web-App-Manifest                                  |
+| GET     | `/api/admin/check` | 204, wenn die PIN stimmt                       |
+| GET     | `/api/venue-map` | Tischplan-Bild                                   |
+| PUT/DELETE | `/api/venue-map` | Tischplan hochladen/entfernen (PIN)          |
 
 Befehle (`type`): `addTeams`, `renameTeam`, `removeTeam`, `updateSettings`,
 `draw`, `discardDraw`, `setResult`, `clearResult`, `resetKnockout`,

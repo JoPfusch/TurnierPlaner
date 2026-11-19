@@ -777,3 +777,68 @@
     border: 1px solid #999;
   }
 }
+
+/* ---------- PIN, infos ---------- */
+
+.pin-gate {
+  min-height: 100vh;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 1rem;
+}
+
+.pin-gate form {
+  width: min(100%, 360px);
+  display: flex;
+  flex-direction: column;
+  gap: 0.8rem;
+}
+
+.pin-gate label {
+  display: flex;
+  flex-direction: column;
+  gap: 0.3rem;
+  color: var(--muted);
+  font-size: 0.85rem;
+}
+
+.pin-gate input {
+  font-size: 1.4rem !important;
+  letter-spacing: 0.3em;
+  text-align: center;
+}
+
+.table-places {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(min(100%, 320px), 1fr));
+  gap: 0.6rem 1rem;
+}
+
+.table-places label {
+  display: flex;
+  flex-direction: column;
+  gap: 0.25rem;
+  font-size: 0.85rem;
+  color: var(--muted);
+}
+
+.table-places label span {
+  color: var(--accent);
+  font-weight: 700;
+}
+
+.venue-map {
+  display: block;
+  max-width: 100%;
+  max-height: 70vh;
+  border-radius: 0.6rem;
+  margin: 0.6rem 0;
+  background: #fff;
+}
+
+.rules-text {
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+  line-height: 1.55;
+}
