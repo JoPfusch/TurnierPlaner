@@ -285,18 +285,37 @@
   flex: 1;
 }
 
+/*
+ * Each name is shortened on its own. Both names grow from zero in equal
+ * steps and stop at their natural width (`max-width: max-content`); what a
+ * short name does not need goes to the long one. So a short name stays
+ * complete and only the long one gets an ellipsis.
+ */
 .d-match-teams {
+  display: flex;
+  align-items: baseline;
+  flex: 1 1 auto;
+  min-width: 0;
+}
+
+.d-match-teams > span {
+  flex: 1 1 0;
+  min-width: 0;
+  max-width: max-content;
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
-  min-width: 0;
+}
+
+.d-match-teams i {
+  flex: none;
 }
 
 .d-match-teams i {
   color: var(--muted);
   font-style: normal;
   font-size: 0.7em;
-  margin: 0 0.2em;
+  margin: 0 0.35em;
 }
 
 .d-match-meta {
@@ -309,6 +328,29 @@
 .d-match.big .d-match-teams {
   font-size: 2.9vh;
   font-weight: 800;
+}
+
+/* The match being played gets one line per team, so each name can use the full width. */
+.d-match.big {
+  align-items: flex-end;
+}
+
+.d-match.big .d-match-teams {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr);
+  line-height: 1.2;
+}
+
+.d-match.big .d-match-teams > span {
+  max-width: none;
+}
+
+.d-match.big .d-match-teams > span:first-child {
+  grid-column: 1 / -1;
+}
+
+.d-match.big .d-match-teams i {
+  margin-left: 0;
 }
 
 .d-table-next {

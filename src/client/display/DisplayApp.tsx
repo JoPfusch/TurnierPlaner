@@ -199,7 +199,9 @@ function MatchLine({ match, view, settings, big = false }: MatchLineProps) {
   return (
     <div className={big ? 'd-match big' : 'd-match'}>
       <span className="d-match-teams">
-        {name(match.teamA, match.placeholderA)} <i>vs</i> {name(match.teamB, match.placeholderB)}
+        <span>{name(match.teamA, match.placeholderA)}</span>
+        <i>vs</i>
+        <span>{name(match.teamB, match.placeholderB)}</span>
       </span>
       <span className="d-match-meta">
         {match.label}
