@@ -53,12 +53,25 @@ export function TeamApp() {
     if (!window.location.pathname.includes(token)) {
       window.history.replaceState(null, '', `/team/${token}`);
     }
-    fetchTeamId(token)
-      .then((id) => {
-        setTeamId(id);
-        setLinkInvalid(id === null);
-      })
-      .catch(() => undefined);
+    const check = (): void => {
+      fetchTeamId(token)
+        .then((id) => {
+          setTeamId(id);
+          setLinkInvalid(id === null);
+        })
+        .catch(() => undefined);
+    };
+    check();
+    // Keeps "last active" in the administration up to date.
+    const timer = setInterval(check, 60_000);
+    const onVisible = (): void => {
+      if (document.visibilityState === 'visible') check();
+    };
+    document.addEventListener('visibilitychange', onVisible);
+    return () => {
+      clearInterval(timer);
+      document.removeEventListener('visibilitychange', onVisible);
+    };
   }, [token]);
 
   useEffect(() => {

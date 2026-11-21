@@ -128,6 +128,25 @@ describe('api', () => {
     expect((await fetch(`${base}/api/team/${tokenA}`)).status).toBe(404);
   });
 
+  it('counts the phones per team', async () => {
+    await start('1234');
+    await post('/api/commands', { type: 'addTeams', names: ['A', 'B'] }, '1234');
+    const links = (await (await fetch(`${base}/api/team-links`, { headers: { 'x-admin-pin': '1234' } })).json()) as Record<string, string>;
+    const open = (teamId: string, device: string) => fetch(`${base}/api/team/${links[teamId]}`, { headers: { 'x-device-id': device } });
+    await open('t1', 'a'.repeat(32));
+    await open('t1', 'a'.repeat(32)); // same phone again
+    await open('t1', 'b'.repeat(32));
+    await open('t2', 'not a device id');
+    expect((await fetch(`${base}/api/team-devices`)).status).toBe(401);
+    const stats = (await (await fetch(`${base}/api/team-devices`, { headers: { 'x-admin-pin': '1234' } })).json()) as Record<string, { devices: number; lastSeen: number | null }>;
+    expect(stats.t1).toMatchObject({ devices: 2, lastSeen: expect.any(Number) });
+    expect(stats.t2).toEqual({ devices: 0, lastSeen: null });
+
+    const reloaded = new TeamTokens(dir);
+    await reloaded.load();
+    expect(reloaded.deviceStats(['t1']).t1!.devices).toBe(2);
+  });
+
   it('serves a manifest whose start url keeps the team link', async () => {
     await start();
     const manifest = (await (await fetch(`${base}/api/manifest?start=/team/abc-123`)).json()) as { start_url: string };

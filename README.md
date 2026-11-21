@@ -36,7 +36,11 @@ sie zusätzlich als QR-Code. Alle Geräte müssen im selben WLAN sein.
 
 ## Ablauf eines Turniers
 
-1. **Teams** eintragen (einzeln oder als Liste, ein Team pro Zeile).
+1. **Teams** eintragen, einzeln oder als Liste. Spielernamen sind optional
+   und nur in der Verwaltung sichtbar. Listenformat, ein Team pro Zeile:
+   `Teamname` oder `Teamname; Spieler 1; Spieler 2`. Aus Excel kopierte
+   Spalten gehen ebenfalls, eine Nummernspalte davor wird ignoriert.
+   Fehlerhafte Zeilen werden mit Zeilennummer gemeldet.
 2. **Format** festlegen: Tische, Größe der KO-Runde, Gruppenanzahl, Wertung.
    Die Tabelle „Möglichkeiten“ zeigt für die aktuelle Teamanzahl jede
    Gruppenanzahl mit Spielanzahl, Dauer und nötigen Zusatzkriterien.
@@ -123,6 +127,10 @@ oder Passwort gibt es nicht.
   Deshalb jedem Team nur den eigenen zeigen. Einzelne Codes lassen sich nicht
   sperren; „Neues Turnier“ (Reiter System) macht alle ungültig.
 - Wird ein Team umbenannt, bleibt die Kopplung bestehen.
+- Im Reiter **Teams** steht bei jedem Team 📱 mit der Zahl der gekoppelten
+  Handys und der letzten Aktivität (aktualisiert sich alle 15 Sekunden).
+  So sieht die Turnierleitung, welche Teams noch nicht gescannt haben. Ein
+  auf dem Startbildschirm abgelegtes iPhone-App-Symbol zählt als eigenes Gerät.
 
 **Als App ablegen:** In der Team-Ansicht über das Browser-Menü „App
 installieren“ bzw. „Zum Startbildschirm hinzufügen“ (Android/Chrome) oder
@@ -155,6 +163,19 @@ die im Browser öffnet.
    eintragen.
 6. Das meldende Team kann seine Meldung zurückziehen oder korrigieren, solange
    sie nicht bestätigt ist.
+
+### Spiele verschieben
+
+Ist ein Team gerade nicht da, lässt sich ein offenes Gruppenspiel im Reiter
+**Spiele** über „Verschieben …“ mit einem anderen offenen Gruppenspiel
+**tauschen**: Beide wechseln Runde und Tisch. Angeboten werden nur Spiele,
+bei denen danach kein Team in derselben Runde doppelt spielt. Gruppen,
+Paarungen, Ergebnisse und die KO-Runde bleiben unverändert; ein erneuter
+Tausch macht es rückgängig. KO-Spiele und gespielte Spiele lassen sich nicht
+verschieben.
+
+Jeder Tisch spielt seine Spiele der Reihe nach ab – „Runde“ ist die geplante
+Reihenfolge, keine feste Uhrzeit.
 
 ### Korrekturen
 

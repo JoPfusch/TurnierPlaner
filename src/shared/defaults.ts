@@ -8,6 +8,8 @@ export const LIMITS = {
   maxKoSize: 64,
   maxTeamNameLength: 70,
   maxRulesLength: 5000,
+  maxPlayers: 2,
+  maxPlayerNameLength: 40,
   maxTableDescriptionLength: 80,
 } as const;
 

@@ -31,6 +31,7 @@ docs/        diese Datei
 | `types.ts`         | Datenmodell des gespeicherten Zustands                                  |
 | `defaults.ts`      | Standardwerte, Grenzen, Beschriftungen der Kriterien                    |
 | `commands.ts`      | Zod-Schemas aller Befehle und des Zustands (Validierung an der Grenze)  |
+| `teamList.ts`      | eingefügte Teamliste lesen (Name; Spieler; Spieler)                     |
 | `reducer.ts`       | `applyCommand(state, command)` – einzige Stelle, die Zustand verändert  |
 | `random.ts`        | Zufallsgenerator mit Startwert (reproduzierbare Auslosung)              |
 | `schedule.ts`      | Auslosung, Jeder-gegen-jeden, Verteilung auf Runden und Tische          |
@@ -50,7 +51,7 @@ docs/        diese Datei
 | `app.ts`     | Routen, PIN-Prüfung, Fehlerabbildung, Auslieferung des Clients |
 | `store.ts`   | Zustand im Speicher, atomares Schreiben, Benachrichtigung      |
 | `network.ts` | LAN-Adressen für Links und QR-Codes                            |
-| `tokens.ts`  | geheime Team-Links (Handy ↔ Team), getrennt vom Turnierzustand |
+| `tokens.ts`  | geheime Team-Links (Handy ↔ Team) und gekoppelte Geräte        |
 | `venueMap.ts`| Tischplan-Bild im Datenordner                                  |
 
 ### `src/client`
@@ -122,6 +123,21 @@ iOS einen eigenen Speicher haben und das im Browser gemerkte Token nicht
 sehen. Auf einen Service Worker wurde verzichtet: Die App ist ohne Server
 ohnehin nutzlos, offline gäbe es nichts anzuzeigen.
 
+### Spiele tauschen
+
+`swapMatches` tauscht Runde (`slot`) und Tisch zweier offener Gruppenspiele.
+Ids, Paarungen und Gruppen bleiben gleich, daher sind Ergebnisse, Meldungen
+und Tabellen nicht betroffen. Die Menge der belegten Runden ändert sich nicht,
+also auch nicht der Beginn der KO-Phase. Einzige Bedingung (`swapProblem`):
+Kein Team spielt danach zweimal in derselben Runde.
+
+### Gekoppelte Geräte
+
+Jeder Browser erzeugt eine zufällige Geräte-Id (localStorage) und schickt sie
+beim Öffnen des Team-Links und danach minütlich mit. Der Server merkt sich je
+Team die Ids mit letzter Aktivität in `team-devices.json`; neue Geräte werden
+sofort geschrieben, die Aktivitätszeit nur im Speicher gehalten.
+
 ### Tischplan
 
 Das Bild liegt als Datei im Datenordner, nicht im Zustand – der wird bei jeder
@@ -186,13 +202,14 @@ werden auf mehrere Seiten verteilt.
 | GET     | `/api/team/:token` | Team zu einem Token                            |
 | POST    | `/api/team/:token/actions` | `propose`, `confirm`, `dispute`, `withdraw` |
 | GET     | `/api/manifest` | Web-App-Manifest                                  |
+| GET     | `/api/team-devices` | gekoppelte Handys je Team (PIN)               |
 | GET     | `/api/admin/check` | 204, wenn die PIN stimmt                       |
 | GET     | `/api/venue-map` | Tischplan-Bild                                   |
 | PUT/DELETE | `/api/venue-map` | Tischplan hochladen/entfernen (PIN)          |
 
 Befehle (`type`): `addTeams`, `renameTeam`, `removeTeam`, `updateSettings`,
 `draw`, `discardDraw`, `setResult`, `clearResult`, `resetKnockout`,
-`resetTournament`, dazu für Meldungen `proposeResult`, `confirmProposal`,
+`resetTournament`, `setPlayers`, `swapMatches`, dazu für Meldungen `proposeResult`, `confirmProposal`,
 `disputeProposal`, `withdrawProposal`, `acceptProposal`, `rejectProposal`,
 `expireProposals`. Die genauen Felder stehen in `src/shared/commands.ts`.
 

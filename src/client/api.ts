@@ -68,8 +68,36 @@ export async function fetchTeamLinks(): Promise<Record<string, string>> {
 }
 
 /** The team a link token belongs to, or `null` if the link is not valid (any more). */
+const DEVICE_KEY = 'turnierplaner.deviceId';
+
+/**
+ * Random id of this browser, so the organiser can see how many phones a team
+ * has paired. `crypto.randomUUID` needs HTTPS, `getRandomValues` does not.
+ */
+function deviceId(): string {
+  try {
+    const known = localStorage.getItem(DEVICE_KEY);
+    if (known) return known;
+    const bytes = crypto.getRandomValues(new Uint8Array(16));
+    const id = Array.from(bytes, (byte) => byte.toString(16).padStart(2, '0')).join('');
+    localStorage.setItem(DEVICE_KEY, id);
+    return id;
+  } catch {
+    return ''; // storage blocked: the phone works, it is just not counted
+  }
+}
+
+/** Paired phones and last activity per team id (PIN protected). */
+export async function fetchTeamDevices(): Promise<Record<string, { devices: number; lastSeen: number | null }>> {
+  const response = await fetch('/api/team-devices', { headers: { 'x-admin-pin': storedPin() } });
+  if (!response.ok) throw new ApiError('Geräte konnten nicht geladen werden.');
+  return response.json() as Promise<Record<string, { devices: number; lastSeen: number | null }>>;
+}
+
 export async function fetchTeamId(token: string): Promise<string | null> {
-  const response = await fetch(`/api/team/${encodeURIComponent(token)}`);
+  const response = await fetch(`/api/team/${encodeURIComponent(token)}`, {
+    headers: { 'x-device-id': deviceId() },
+  });
   if (!response.ok) return null;
   return ((await response.json()) as { teamId: string }).teamId;
 }

@@ -3,7 +3,7 @@ import { initialState, LIMITS } from './defaults';
 import { DomainError } from './errors';
 import { validateFormat } from './format';
 import { dependentMatchIds } from './knockout';
-import { createDraw } from './schedule';
+import { createDraw, swapMatches, swapProblem } from './schedule';
 import type { MatchId, Proposal, Result, Settings, TournamentState } from './types';
 import { deriveView } from './view';
 
@@ -57,11 +57,11 @@ function reduce(state: TournamentState, command: Command): TournamentState {
       const taken = new Set(state.teams.map((team) => normalize(team.name)));
       const teams = [...state.teams];
       let nextTeamNumber = state.nextTeamNumber;
-      for (const raw of command.names) {
-        const name = raw.trim();
+      for (const entry of command.names) {
+        const { name, players } = typeof entry === 'string' ? { name: entry, players: [] } : entry;
         if (taken.has(normalize(name))) continue; // silently skip duplicates of a bulk import
         taken.add(normalize(name));
-        teams.push({ id: `t${nextTeamNumber++}`, name });
+        teams.push({ id: `t${nextTeamNumber++}`, name: name.trim(), players: cleanPlayers(players) });
       }
       if (teams.length > LIMITS.maxTeams) {
         throw new DomainError(`Es sind höchstens ${LIMITS.maxTeams} Teams möglich.`);
@@ -80,6 +80,28 @@ function reduce(state: TournamentState, command: Command): TournamentState {
       return {
         ...state,
         teams: state.teams.map((team) => (team.id === command.teamId ? { ...team, name } : team)),
+      };
+    }
+
+    case 'setPlayers':
+      if (!state.teams.some((team) => team.id === command.teamId)) {
+        throw new DomainError('Team nicht gefunden.');
+      }
+      return {
+        ...state,
+        teams: state.teams.map((team) =>
+          team.id === command.teamId ? { ...team, players: cleanPlayers(command.players) } : team,
+        ),
+      };
+
+    case 'swapMatches': {
+      if (!state.draw) throw new DomainError('Die Gruppen wurden noch nicht ausgelost.');
+      const played = new Set(Object.keys(state.results));
+      const problem = swapProblem(state.draw.matches, played, command.matchA, command.matchB);
+      if (problem) throw new DomainError(problem);
+      return {
+        ...state,
+        draw: { ...state.draw, matches: swapMatches(state.draw.matches, command.matchA, command.matchB) },
       };
     }
 
@@ -236,6 +258,15 @@ function proposeResult(state: TournamentState, matchId: MatchId, proposal: Propo
     return same ? state : withProposal(state, matchId, { ...existing, disputed: true });
   }
   return withProposal(state, matchId, proposal);
+}
+
+/** Trimmed player names without empty entries. */
+function cleanPlayers(players: readonly string[]): string[] {
+  const names = players.map((player) => player.trim()).filter((player) => player !== '');
+  if (names.length > LIMITS.maxPlayers) {
+    throw new DomainError(`Es sind höchstens ${LIMITS.maxPlayers} Spieler pro Team möglich.`);
+  }
+  return names;
 }
 
 function normalize(name: string): string {

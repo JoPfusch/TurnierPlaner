@@ -10,6 +10,12 @@ import { CONFIRMATION_MODES, CRITERION_KEYS, type TournamentState } from './type
 
 const teamName = z.string().trim().min(1).max(LIMITS.maxTeamNameLength);
 const score = z.number().int().min(0).max(99);
+const players = z
+  .array(z.string().trim().max(LIMITS.maxPlayerNameLength))
+  .max(LIMITS.maxPlayers)
+  .transform((names) => names.filter((name) => name !== ''));
+/** A team for `addTeams`: just the name, or name plus players. */
+const newTeam = z.union([teamName, z.object({ name: teamName, players })]);
 
 export const settingsSchema = z.object({
   name: z.string().trim().min(1).max(60),
@@ -38,7 +44,8 @@ export const settingsSchema = z.object({
 });
 
 export const commandSchema = z.discriminatedUnion('type', [
-  z.object({ type: z.literal('addTeams'), names: z.array(teamName).min(1).max(LIMITS.maxTeams) }),
+  z.object({ type: z.literal('addTeams'), names: z.array(newTeam).min(1).max(LIMITS.maxTeams) }),
+  z.object({ type: z.literal('setPlayers'), teamId: z.string(), players }),
   z.object({ type: z.literal('renameTeam'), teamId: z.string(), name: teamName }),
   z.object({ type: z.literal('removeTeam'), teamId: z.string() }),
   z.object({ type: z.literal('updateSettings'), patch: settingsSchema.partial() }),
@@ -48,6 +55,11 @@ export const commandSchema = z.discriminatedUnion('type', [
   z.object({ type: z.literal('discardDraw') }),
   z.object({ type: z.literal('setResult'), matchId: z.string(), scoreA: score, scoreB: score }),
   z.object({ type: z.literal('clearResult'), matchId: z.string() }),
+  /**
+   * Exchanges the places (round and table) of two open group matches, e.g. to
+   * play another match first when a team is not there yet.
+   */
+  z.object({ type: z.literal('swapMatches'), matchA: z.string(), matchB: z.string() }),
   /** Deletes all knockout results (needed before correcting group results that change the qualifiers). */
   z.object({ type: z.literal('resetKnockout') }),
   /** Deletes everything including teams and settings. */
@@ -90,7 +102,7 @@ export const stateSchema = z.object({
   schemaVersion: z.literal(1),
   revision: z.number().int().min(0),
   settings: settingsSchema,
-  teams: z.array(z.object({ id: z.string(), name: teamName })).max(LIMITS.maxTeams),
+  teams: z.array(z.object({ id: z.string(), name: teamName, players })).max(LIMITS.maxTeams),
   nextTeamNumber: z.number().int().min(1),
   draw: z
     .object({
@@ -124,8 +136,12 @@ export const stateSchema = z.object({
 export function parseState(raw: unknown): TournamentState {
   const input = (typeof raw === 'object' && raw !== null ? raw : {}) as Record<string, unknown>;
   const settings = typeof input.settings === 'object' && input.settings !== null ? input.settings : {};
+  const teams = Array.isArray(input.teams)
+    ? input.teams.map((team: unknown) => ({ players: [], ...(team as object) }))
+    : input.teams;
   return stateSchema.parse({
     ...input,
+    teams,
     settings: { ...defaultSettings(), ...settings },
     proposals: input.proposals ?? {},
   });

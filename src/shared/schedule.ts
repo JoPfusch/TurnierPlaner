@@ -121,3 +121,49 @@ export function createDraw(
   });
   return { seed, groups, matches: buildGroupSchedule(groups, tableCount), lots };
 }
+
+/**
+ * Checks whether two group matches may exchange their places (round and
+ * table). Returns the reason if not, `null` if the swap is allowed.
+ *
+ * Rules: both matches are open (no result) and after the swap no team plays
+ * twice in the same round.
+ */
+export function swapProblem(
+  matches: readonly GroupMatch[],
+  playedIds: ReadonlySet<string>,
+  matchA: string,
+  matchB: string,
+): string | null {
+  const a = matches.find((match) => match.id === matchA);
+  const b = matches.find((match) => match.id === matchB);
+  if (!a || !b) return 'Nur Gruppenspiele können getauscht werden.';
+  if (a.id === b.id) return 'Ein Spiel kann nicht mit sich selbst getauscht werden.';
+  if (playedIds.has(a.id) || playedIds.has(b.id)) {
+    return 'Gespielte Spiele können nicht verschoben werden.';
+  }
+  if (a.slot === b.slot) return null; // same round: only the tables change
+  const clash = (moving: GroupMatch, slot: number, leaving: GroupMatch): boolean =>
+    matches.some(
+      (other) =>
+        other.slot === slot &&
+        other.id !== leaving.id &&
+        [other.teamA, other.teamB].some((team) => team === moving.teamA || team === moving.teamB),
+    );
+  if (clash(a, b.slot, b) || clash(b, a.slot, a)) {
+    return 'Dann würde ein Team in derselben Runde zweimal spielen.';
+  }
+  return null;
+}
+
+/** The matches with the places of `matchA` and `matchB` exchanged. */
+export function swapMatches(matches: readonly GroupMatch[], matchA: string, matchB: string): GroupMatch[] {
+  const a = matches.find((match) => match.id === matchA);
+  const b = matches.find((match) => match.id === matchB);
+  if (!a || !b) return [...matches];
+  return matches.map((match) => {
+    if (match.id === a.id) return { ...match, slot: b.slot, table: b.table };
+    if (match.id === b.id) return { ...match, slot: a.slot, table: a.table };
+    return match;
+  });
+}

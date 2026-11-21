@@ -1,4 +1,5 @@
 import { useState } from 'react';
+import { swapProblem } from '../../shared/schedule';
 import type { MatchView } from '../../shared/view';
 import { clockTime } from '../time';
 import type { TabProps } from './common';
@@ -13,7 +14,20 @@ export function MatchesTab({ state, view, run }: TabProps) {
   const [filter, setFilter] = useState<Filter>('open');
   /** Match and side for which the cup picker is open. */
   const [picking, setPicking] = useState<{ matchId: string; side: 'A' | 'B' } | null>(null);
+  /** Match for which the "swap with" list is open. */
+  const [moving, setMoving] = useState<string | null>(null);
   const { settings } = state;
+  const played = new Set(Object.keys(state.results));
+
+  /** Open group matches that may change places with `matchId`, in playing order. */
+  const swapCandidates = (matchId: string): MatchView[] =>
+    view.schedule.filter(
+      (other) =>
+        other.kind === 'group' &&
+        other.id !== matchId &&
+        !other.result &&
+        swapProblem(state.draw?.matches ?? [], played, matchId, other.id) === null,
+    );
 
   if (view.phase === 'setup') {
     return <p className="muted">Der Spielplan entsteht mit der Auslosung (Reiter „Format“).</p>;
@@ -145,6 +159,41 @@ export function MatchesTab({ state, view, run }: TabProps) {
                       </div>
                     )}
                     {!match.playable && <p className="muted small">Teilnehmer stehen noch nicht fest.</p>}
+                    {match.kind === 'group' && !match.result && !open && moving !== match.id && (
+                      <button type="button" className="ghost small" onClick={() => setMoving(match.id)}>
+                        Verschieben …
+                      </button>
+                    )}
+                    {moving === match.id && (
+                      <div className="swap-list">
+                        <p>
+                          Tauschen mit – das gewählte Spiel übernimmt Runde und Tisch von diesem, dieses
+                          rückt an dessen Stelle:
+                        </p>
+                        {swapCandidates(match.id).length === 0 && (
+                          <p className="muted small">Kein Spiel passt, ohne dass ein Team doppelt spielt.</p>
+                        )}
+                        {swapCandidates(match.id).map((other) => (
+                          <button
+                            type="button"
+                            key={other.id}
+                            onClick={() => {
+                              void run({ type: 'swapMatches', matchA: match.id, matchB: other.id }).then(
+                                (ok) => ok && setMoving(null),
+                              );
+                            }}
+                          >
+                            <span className="muted">
+                              R{other.slot + 1} · {settings.tableNames[other.table]}
+                            </span>{' '}
+                            {name(other.teamA, '')} – {name(other.teamB, '')}
+                          </button>
+                        ))}
+                        <button type="button" className="ghost small" onClick={() => setMoving(null)}>
+                          Abbrechen
+                        </button>
+                      </div>
+                    )}
                     {match.result && !open && (
                       <button
                         type="button"

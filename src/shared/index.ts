@@ -9,4 +9,5 @@ export * from './reducer';
 export * from './schedule';
 export * from './standings';
 export * from './types';
+export * from './teamList';
 export * from './view';

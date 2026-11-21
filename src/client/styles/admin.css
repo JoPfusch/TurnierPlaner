@@ -324,13 +324,52 @@
   margin: 0;
   padding: 0;
   display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(min(100%, 230px), 1fr));
+  grid-template-columns: repeat(auto-fill, minmax(min(100%, 300px), 1fr));
   gap: 0.4rem;
 }
 
-.team-list li {
+.team-list li.team-row {
   display: flex;
-  gap: 0.2rem;
+  flex-direction: column;
+  gap: 0.25rem;
+  padding: 0.4rem;
+  border-radius: 0.5rem;
+  background: var(--bg-sunken);
+}
+
+.team-row .players {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 0.25rem;
+}
+
+.admin .team-row .players input {
+  font-size: 0.85rem;
+  padding: 0.35rem 0.55rem;
+}
+
+.device-badge {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  flex: none;
+  min-width: 3.2rem;
+  font-size: 0.8rem;
+  line-height: 1.1;
+  color: var(--muted);
+  opacity: 0.6;
+}
+
+.device-badge.paired {
+  color: var(--in);
+  opacity: 1;
+  font-weight: 700;
+}
+
+.device-badge small {
+  font-size: 0.65rem;
+  font-weight: 400;
+  color: var(--muted);
 }
 
 .table-names {
@@ -841,4 +880,28 @@
   white-space: pre-wrap;
   overflow-wrap: anywhere;
   line-height: 1.55;
+}
+
+/* ---------- swapping matches ---------- */
+
+.swap-list {
+  display: flex;
+  flex-direction: column;
+  gap: 0.3rem;
+  margin-top: 0.5rem;
+  max-height: 18rem;
+  overflow-y: auto;
+}
+
+.swap-list p {
+  margin: 0 0 0.2rem;
+  font-size: 0.85rem;
+}
+
+.admin .swap-list button:not(.ghost) {
+  text-align: left;
+  white-space: normal;
+  font-weight: 500;
+  background: var(--bg-sunken);
+  border-color: var(--line);
 }

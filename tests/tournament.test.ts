@@ -221,3 +221,75 @@ describe('information for the teams', () => {
     expect(parseState({ ...initialState(), settings: oldSettings }).settings).toMatchObject({ rules: '', tableDescriptions: [], venueMapVersion: null });
   });
 });
+
+describe('players', () => {
+  it('stores up to two players per team, also after the draw', () => {
+    let state = run(initialState(), {
+      type: 'addTeams',
+      names: ['Ohne Spieler', { name: 'Mit Spielern', players: ['Anna', ' ', 'Ben'] }],
+    });
+    expect(state.teams.map((t) => t.players)).toEqual([[], ['Anna', 'Ben']]);
+    state = run(drawnTournament(8, 2, 4), { type: 'setPlayers', teamId: 't1', players: ['Chris', 'Dana'] });
+    expect(state.teams[0]!.players).toEqual(['Chris', 'Dana']);
+    expect(() => applyCommand(state, { type: 'setPlayers', teamId: 't1', players: ['a', 'b', 'c'] } as never)).toThrow();
+  });
+});
+
+describe('moving group matches', () => {
+  const slotOf = (state: ReturnType<typeof drawnTournament>, id: string) => state.draw!.matches.find((m) => m.id === id)!;
+
+  it('exchanges round and table and keeps everything else', () => {
+    let state = drawnTournament(12, 3, 4, 3);
+    const first = state.draw!.matches.find((m) => m.slot === 0)!;
+    state = applyCommand(state, { type: 'setResult', matchId: state.draw!.matches.find((m) => m.slot === 0 && m.id !== first.id)!.id, scoreA: 1, scoreB: 0 });
+    const before = deriveView(state);
+    // a later match that does not clash with round 0
+    const busy = new Set(state.draw!.matches.filter((m) => m.slot === 0 && m.id !== first.id).flatMap((m) => [m.teamA, m.teamB]));
+    const later = state.draw!.matches.find(
+      (m) => m.slot > 0 && !busy.has(m.teamA) && !busy.has(m.teamB) &&
+        !state.draw!.matches.some((o) => o.slot === m.slot && o.id !== m.id && [o.teamA, o.teamB].some((t) => t === first.teamA || t === first.teamB)),
+    )!;
+    const swapped = applyCommand(state, { type: 'swapMatches', matchA: first.id, matchB: later.id });
+    expect(slotOf(swapped, first.id)).toMatchObject({ slot: later.slot, table: later.table });
+    expect(slotOf(swapped, later.id)).toMatchObject({ slot: first.slot, table: first.table });
+    // draw, pairings, results and standings are unchanged
+    expect(swapped.draw!.groups).toEqual(state.draw!.groups);
+    expect(swapped.results).toEqual(state.results);
+    expect(swapped.draw!.matches.map((m) => [m.id, m.teamA, m.teamB])).toEqual(state.draw!.matches.map((m) => [m.id, m.teamA, m.teamB]));
+    const after = deriveView(swapped);
+    expect(after.groups).toEqual(before.groups);
+    expect(after.bracket!.endSlot).toBe(before.bracket!.endSlot);
+    // the table now plays the other match first
+    expect(after.tables[first.table]!.current!.id).toBe(later.id);
+    // swapping back restores the plan
+    expect(applyCommand(swapped, { type: 'swapMatches', matchA: first.id, matchB: later.id }).draw).toEqual(state.draw);
+  });
+
+  it('refuses swaps that would let a team play twice in one round', () => {
+    const state = drawnTournament(8, 2, 2);
+    const a = state.draw!.matches.find((m) => m.slot === 0)!;
+    // a match of the same team in another round, whose round also contains a match of a's opponent group
+    const clash = state.draw!.matches.find(
+      (m) => m.slot !== a.slot && state.draw!.matches.some((o) => o.slot === m.slot && o.id !== m.id && [o.teamA, o.teamB].some((t) => t === a.teamA || t === a.teamB)),
+    )!;
+    expect(() => applyCommand(state, { type: 'swapMatches', matchA: a.id, matchB: clash.id })).toThrow(/zweimal/);
+  });
+
+  it('refuses played matches and knockout matches', () => {
+    let state = drawnTournament(8, 2, 4);
+    const [a, b] = state.draw!.matches.filter((m) => m.slot === 0);
+    state = applyCommand(state, { type: 'setResult', matchId: a!.id, scoreA: 1, scoreB: 0 });
+    expect(() => applyCommand(state, { type: 'swapMatches', matchA: a!.id, matchB: b!.id })).toThrow(/Gespielte/);
+    expect(() => applyCommand(state, { type: 'swapMatches', matchA: b!.id, matchB: 'ko-0-0' })).toThrow(/Gruppenspiele/);
+  });
+
+  it('loads data files of a running tournament written before players existed', () => {
+    const running = playGroupStage(drawnTournament(8, 2, 4));
+    const old = JSON.parse(JSON.stringify(running)) as { teams: Array<{ players?: string[] }> };
+    for (const team of old.teams) delete team.players;
+    const loaded = parseState(old);
+    expect(loaded.teams.every((t) => Array.isArray(t.players) && t.players.length === 0)).toBe(true);
+    expect(loaded.draw).toEqual(running.draw);
+    expect(loaded.results).toEqual(running.results);
+  });
+});

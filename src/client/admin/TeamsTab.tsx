@@ -1,15 +1,21 @@
-import { useEffect, useState, type FormEvent } from 'react';
+import { useEffect, useRef, useState, type FormEvent } from 'react';
+import type { Command } from '../../shared/commands';
 import { LIMITS } from '../../shared/defaults';
+import { parseTeamList } from '../../shared/teamList';
 import type { Team } from '../../shared/types';
-import { fetchInfo, fetchTeamLinks, shareOrigins } from '../api';
+import { fetchInfo, fetchTeamDevices, fetchTeamLinks, shareOrigins } from '../api';
 import { QrCode } from '../components/QrCode';
 import { TextField, type TabProps } from './common';
 
-/** Team registration: single entry, bulk paste (one name per line), rename, remove. */
+type DeviceStats = Record<string, { devices: number; lastSeen: number | null }>;
+
+/** Team registration: single entry, bulk paste, rename, players, paired phones. */
 export function TeamsTab({ state, view, run }: TabProps) {
   const [name, setName] = useState('');
   const [bulk, setBulk] = useState('');
+  const [bulkErrors, setBulkErrors] = useState<string[]>([]);
   const locked = view.phase !== 'setup';
+  const devices = useDeviceStats(state.settings.teamReporting);
 
   const add = async (event: FormEvent): Promise<void> => {
     event.preventDefault();
@@ -17,11 +23,10 @@ export function TeamsTab({ state, view, run }: TabProps) {
     if (await run({ type: 'addTeams', names: [name] })) setName('');
   };
   const addBulk = async (): Promise<void> => {
-    const names = bulk
-      .split(/[\n;]/)
-      .map((entry) => entry.trim())
-      .filter(Boolean);
-    if (names.length > 0 && (await run({ type: 'addTeams', names }))) setBulk('');
+    const { teams, errors } = parseTeamList(bulk);
+    setBulkErrors(errors);
+    if (errors.length > 0 || teams.length === 0) return;
+    if (await run({ type: 'addTeams', names: teams })) setBulk('');
   };
 
   return (
@@ -31,35 +36,45 @@ export function TeamsTab({ state, view, run }: TabProps) {
           <h2>Teams ({state.teams.length})</h2>
           {locked && (
             <p className="note">
-              Die Gruppen sind ausgelost. Teams können noch umbenannt, aber nicht mehr hinzugefügt oder
-              entfernt werden.
+              Die Gruppen sind ausgelost. Teams und Spieler können noch umbenannt, aber keine Teams
+              mehr hinzugefügt oder entfernt werden.
             </p>
           )}
           {state.teams.length === 0 && <p className="muted">Noch keine Teams eingetragen.</p>}
           <ol className="team-list">
             {state.teams.map((team) => (
-              <li key={team.id}>
-                <TextField
-                  value={team.name}
-                  maxLength={LIMITS.maxTeamNameLength}
-                  ariaLabel="Teamname"
-                  onCommit={(value) => {
-                    if (value.trim()) void run({ type: 'renameTeam', teamId: team.id, name: value });
-                  }}
-                />
-                {!locked && (
-                  <button
-                    type="button"
-                    className="ghost danger"
-                    title="Team entfernen"
-                    onClick={() => void run({ type: 'removeTeam', teamId: team.id })}
-                  >
-                    ✕
-                  </button>
-                )}
+              <li key={team.id} className="team-row">
+                <div className="row">
+                  <TextField
+                    value={team.name}
+                    maxLength={LIMITS.maxTeamNameLength}
+                    ariaLabel="Teamname"
+                    onCommit={(value) => {
+                      if (value.trim()) void run({ type: 'renameTeam', teamId: team.id, name: value });
+                    }}
+                  />
+                  {devices && <DeviceBadge stats={devices[team.id]} />}
+                  {!locked && (
+                    <button
+                      type="button"
+                      className="ghost danger"
+                      title="Team entfernen"
+                      onClick={() => void run({ type: 'removeTeam', teamId: team.id })}
+                    >
+                      ✕
+                    </button>
+                  )}
+                </div>
+                <PlayerFields team={team} run={run} />
               </li>
             ))}
           </ol>
+          {devices && (
+            <p className="muted small">
+              📱 = Handys, die den QR-Code des Teams geöffnet haben, mit letzter Aktivität. Ein auf dem
+              Startbildschirm abgelegtes iPhone-App-Symbol zählt als eigenes Gerät.
+            </p>
+          )}
         </section>
 
         {!locked && (
@@ -81,19 +96,127 @@ export function TeamsTab({ state, view, run }: TabProps) {
             <textarea
               rows={8}
               value={bulk}
-              placeholder={'Ein Team pro Zeile, z. B.\nDie Becherstürmer\nPong Pirates'}
-              onChange={(event) => setBulk(event.target.value)}
+              placeholder={'Ein Team pro Zeile, Spieler optional mit ; getrennt:\nDie Becherstürmer; Anna; Ben\nPong Pirates'}
+              onChange={(event) => {
+                setBulk(event.target.value);
+                setBulkErrors([]);
+              }}
             />
+            {bulkErrors.map((error) => (
+              <p className="note warn" key={error}>
+                {error}
+              </p>
+            ))}
             <button type="button" disabled={!bulk.trim()} onClick={() => void addBulk()}>
               Liste übernehmen
             </button>
-            <p className="muted small">Doppelte Namen werden übersprungen.</p>
+            <p className="muted small">
+              Aus Excel kopierte Spalten (Team, Spieler 1, Spieler 2) gehen auch; eine Nummernspalte
+              davor wird ignoriert. Doppelte Namen werden übersprungen.
+            </p>
           </section>
         )}
       </div>
       {state.settings.teamReporting && state.teams.length > 0 && <TeamCodes teams={state.teams} />}
     </div>
   );
+}
+
+const padPlayers = (players: readonly string[]): string[] =>
+  Array.from({ length: LIMITS.maxPlayers }, (_, index) => players[index] ?? '');
+
+/**
+ * The player names of one team. Both fields share one draft and are always
+ * saved together, so jumping from one field to the next cannot overwrite the
+ * first name with an outdated value.
+ */
+function PlayerFields({ team, run }: { team: Team; run: (command: Command) => Promise<boolean> }) {
+  const [drafts, setDrafts] = useState(() => padPlayers(team.players));
+  const editing = useRef(false);
+  const saved = team.players.join('\n');
+
+  useEffect(() => {
+    // Take over changes from other devices, but never while someone is typing here.
+    if (!editing.current) setDrafts(padPlayers(team.players));
+  }, [saved]);
+
+  const commit = (): void => {
+    editing.current = false;
+    const cleaned = drafts.map((draft) => draft.trim()).filter(Boolean);
+    if (cleaned.join('\n') !== saved) void run({ type: 'setPlayers', teamId: team.id, players: drafts });
+  };
+
+  return (
+    <div className="players">
+      {drafts.map((draft, index) => (
+        <input
+          key={index}
+          value={draft}
+          maxLength={LIMITS.maxPlayerNameLength}
+          placeholder={`Spieler ${index + 1}`}
+          aria-label={`Spieler ${index + 1} von ${team.name}`}
+          onFocus={() => {
+            editing.current = true;
+          }}
+          onChange={(event) => {
+            const value = event.target.value;
+            setDrafts((current) => current.map((old, i) => (i === index ? value : old)));
+          }}
+          onBlur={commit}
+          onKeyDown={(event) => {
+            if (event.key === 'Enter') event.currentTarget.blur();
+          }}
+        />
+      ))}
+    </div>
+  );
+}
+
+/** Polls the paired phones per team while the tab is open; `null` if reporting is off. */
+function useDeviceStats(enabled: boolean): DeviceStats | null {
+  const [stats, setStats] = useState<DeviceStats | null>(null);
+  useEffect(() => {
+    if (!enabled) {
+      setStats(null);
+      return;
+    }
+    let active = true;
+    const load = (): void => {
+      fetchTeamDevices()
+        .then((data) => {
+          if (active) setStats(data);
+        })
+        .catch(() => undefined);
+    };
+    load();
+    const timer = setInterval(load, 15_000);
+    return () => {
+      active = false;
+      clearInterval(timer);
+    };
+  }, [enabled]);
+  return stats;
+}
+
+function DeviceBadge({ stats }: { stats: DeviceStats[string] | undefined }) {
+  const count = stats?.devices ?? 0;
+  const ago = stats?.lastSeen ? minutesAgo(stats.lastSeen) : null;
+  return (
+    <span
+      className={`device-badge${count > 0 ? ' paired' : ''}`}
+      title={count > 0 ? `${count} Handy(s), zuletzt aktiv ${ago}` : 'Noch kein Handy gekoppelt'}
+    >
+      📱 {count}
+      {count > 0 && <small>{ago}</small>}
+    </span>
+  );
+}
+
+function minutesAgo(time: number): string {
+  const minutes = Math.floor((Date.now() - time) / 60_000);
+  if (minutes < 2) return 'gerade';
+  if (minutes < 60) return `vor ${minutes} min`;
+  return `vor ${Math.floor(minutes / 60)} h`;
 }
 
 /**

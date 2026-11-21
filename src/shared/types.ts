@@ -14,6 +14,8 @@ export type MatchId = string;
 export interface Team {
   id: TeamId;
   name: string;
+  /** Names of the players (optional, shown in the administration). */
+  players: string[];
 }
 
 /**

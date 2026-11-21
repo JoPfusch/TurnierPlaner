@@ -25,7 +25,8 @@ import { deleteVenueMap, findVenueMap, saveVenueMap, VENUE_MAP_TYPES } from './v
  *   POST /api/commands  apply a command            (PIN protected)
  *   POST /api/import    replace the state (backup) (PIN protected)
  *   GET  /api/team-links             secret link token per team, for the QR codes (PIN protected)
- *   GET  /api/team/:token            which team a phone belongs to
+ *   GET  /api/team/:token            which team a phone belongs to (header x-device-id counts the phone)
+ *   GET  /api/team-devices           paired phones per team (PIN protected)
  *   POST /api/team/:token/actions    report / confirm / dispute / withdraw a result
  *   GET  /api/manifest               web app manifest ("install" on the home screen)
  *   GET  /api/admin/check            204 if the PIN is right (login of the administration)
@@ -139,13 +140,19 @@ export function createApp(store: TournamentStore, config: ServerConfig, tokens: 
     return teamId && store.current.teams.some((team) => team.id === teamId) ? teamId : null;
   };
 
-  app.get('/api/team/:token', (req, res) => {
+  app.get('/api/team/:token', async (req, res) => {
     const teamId = teamOf(req.params.token);
     if (!teamId) {
       res.status(404).json({ error: 'Dieser Team-Link ist nicht (mehr) gültig.' });
       return;
     }
+    const deviceId = req.get('x-device-id') ?? '';
+    if (/^[0-9a-f]{16,64}$/.test(deviceId)) await tokens.touch(teamId, deviceId, Date.now());
     res.json({ teamId });
+  });
+
+  app.get('/api/team-devices', requirePin, (_req, res) => {
+    res.json(tokens.deviceStats(store.current.teams.map((team) => team.id)));
   });
 
   app.post('/api/team/:token/actions', (req, res) => {
